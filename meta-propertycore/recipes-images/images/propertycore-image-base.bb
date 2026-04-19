@@ -8,7 +8,7 @@ inherit core-image
 
 # Start from the minimal image feature set
 IMAGE_FEATURES += " \
-    ssh-server-dropbear \
+    ssh-server-openssh \
     package-management \
 "
 
@@ -37,9 +37,6 @@ IMAGE_INSTALL = " \
     tzdata \
     \
 "
-
-# Set image name and hostname
-hostname:pn-base-files = "propertycore-hub"
 
 # Image size — rootfs partition (ext3), in KB. 512MB.
 IMAGE_ROOTFS_SIZE ?= "524288"
