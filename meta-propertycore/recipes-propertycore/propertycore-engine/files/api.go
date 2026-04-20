@@ -17,6 +17,7 @@ type statusResponse struct {
 	MQTTBroker  string `json:"mqtt_broker"`
 	MQTTAlive   bool   `json:"mqtt_connected"`
 	DeviceCount int    `json:"device_count"`
+	SceneCount  int    `json:"scene_count"`
 	WSClients   int    `json:"ws_clients"`
 }
 
@@ -25,7 +26,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -35,6 +36,7 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager, ws *WSHub) http.Ha
 			MQTTBroker:  mqtt.addr,
 			MQTTAlive:   mqtt.IsConnected(),
 			DeviceCount: state.Count(),
+			SceneCount:  scenes.Count(),
 			WSClients:   ws.ClientCount(),
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -78,6 +80,106 @@ func makeDevicesHandler(state *StateManager) http.HandlerFunc {
 		}
 		if err := json.NewEncoder(w).Encode(dev); err != nil {
 			http.Error(w, "encode error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// makeScenesHandler handles all scene CRUD and execution endpoints:
+//
+//	GET    /api/v1/scenes           → list all scenes
+//	POST   /api/v1/scenes           → create a scene
+//	GET    /api/v1/scenes/{id}      → get a scene
+//	DELETE /api/v1/scenes/{id}      → delete a scene
+//	POST   /api/v1/scenes/{id}/execute → execute a scene
+func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Parse path suffix after /api/v1/scenes
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/scenes")
+		suffix = strings.Trim(suffix, "/")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// POST /api/v1/scenes/{id}/execute
+		if strings.HasSuffix(suffix, "/execute") {
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			id := strings.TrimSuffix(suffix, "/execute")
+			scene, err := sm.Execute(id, mqtt)
+			if err != nil {
+				if scene == nil {
+					w.WriteHeader(http.StatusNotFound)
+				}
+				fmt.Fprintf(w, `{"error":%q}`, err.Error())
+				return
+			}
+			ws.Broadcast("scene_executed", scene)
+			if err := json.NewEncoder(w).Encode(scene); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Collection: GET /api/v1/scenes or POST /api/v1/scenes
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := sm.GetAll()
+				if all == nil {
+					all = []*Scene{}
+				}
+				if err := json.NewEncoder(w).Encode(all); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var s Scene
+				if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if s.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"name is required"}`)
+					return
+				}
+				if err := sm.Add(&s); err != nil {
+					http.Error(w, `{"error":"could not create scene"}`, http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(&s); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Single scene: GET /api/v1/scenes/{id} or DELETE /api/v1/scenes/{id}
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			s, ok := sm.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"scene not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(s); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !sm.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"scene not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
 	}
 }
