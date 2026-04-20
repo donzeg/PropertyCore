@@ -1,0 +1,23 @@
+# PropertyCore Relay Firmware — sdkconfig defaults
+# Targets: ESP32 (ESP-IDF v5.x)
+# SKUs: PC-RLY-1CH-W, PC-RLY-2CH-W, PC-RLY-4CH-W, PC-RLY-6CH-W
+
+# Increase main task stack (default 3584 is too small with Wi-Fi + MQTT init)
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# MQTT buffer
+CONFIG_MQTT_BUFFER_SIZE=1024
+CONFIG_MQTT_RECONNECT_TIMEOUT_MS=5000
+
+# Wi-Fi buffers — reduce slightly to save RAM
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=8
+
+# FreeRTOS tick rate — 1ms resolution for debounce accuracy
+CONFIG_FREERTOS_HZ=1000
+
+# Disable Classic Bluetooth and BLE — not used, frees ~100KB flash
+CONFIG_BT_ENABLED=n
+
+# Log level — INFO in production (change to DEBUG for development)
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

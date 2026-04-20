@@ -60,10 +60,35 @@ The OS image must:
 │   └── recipes-propertycore/
 │       └── propertycore-engine/     ← Go automation engine recipe
 │           ├── files/
-│           │   ├── main.go          ← Go source (HTTP /health + /status, MQTT ping)
+│           │   ├── main.go          ← Engine entry point — wires all components, v0.9.0
+│           │   ├── state.go         ← StateManager — ephemeral in-memory device state
+│           │   ├── device.go        ← DeviceRegistry — persistent device metadata
+│           │   ├── mqtt.go          ← MQTTClient — subscribe/publish over Mosquitto
+│           │   ├── ws.go            ← WSHub — RFC 6455 WebSocket server
+│           │   ├── scene.go         ← SceneManager — CRUD + execute
+│           │   ├── rule.go          ← RulesEngine — if/then automation rules
+│           │   ├── room.go          ← RoomManager — room CRUD (also defines randomID())
+│           │   ├── user.go          ← UserManager — user CRUD with roles (owner/admin/guest)
+│           │   ├── scheduler.go     ← ScheduleManager — time-based scene triggers
+│           │   ├── store.go         ← Store — JSON persistence to /var/lib/propertycore/
+│           │   ├── api.go           ← HTTP handlers for all REST endpoints
 │           │   ├── go.mod           ← module github.com/propertycore/propertycore-engine
-│           │   └── propertycore-engine.service  ← systemd unit
-│           └── propertycore-engine_0.1.bb       ← Yocto recipe
+│           │   └── propertycore-engine.service  ← systemd unit (StateDirectory=propertycore)
+│           ├── propertycore-engine_0.1.bb  ← v0.1 recipe (archived)
+│           ├── ...                         ← v0.2 – v0.8 recipes (archived)
+│           └── propertycore-engine_0.9.bb  ← current active recipe
+├── firmware/
+│   └── pc-rly-wifi/                 ← ESP32 Wi-Fi relay firmware (PC-RLY-xCH-W)
+│       ├── CMakeLists.txt           ← ESP-IDF project root
+│       ├── sdkconfig.defaults       ← Build defaults (BT off, stack sizes)
+│       ├── README.md                ← Flash guide, NVS config, GPIO table
+│       └── main/
+│           ├── CMakeLists.txt
+│           ├── config.h             ← Channel count, GPIO pins, MQTT defaults
+│           ├── relay.c/h            ← GPIO relay driver (active-low, N-channel)
+│           ├── nvs_config.c/h       ← NVS: device_id, broker_ip, wifi creds
+│           ├── mqtt_pc.c/h          ← MQTT: publish state, receive cmd, LWT
+│           └── main.c               ← app_main: Wi-Fi → switches → MQTT
 ├── build/                           ← RPi5 BitBake build dir (gitignored)
 ├── build-qemu/                      ← QEMU BitBake build dir (gitignored)
 ├── downloads/                       ← Shared fetch cache (gitignored)
@@ -140,7 +165,8 @@ runqemu qemuarm64 nographic slirp
 ## Current Build Phase
 
 > Phase 1 — Foundation: COMPLETE ✅
-> Phase 2 — Go Automation Engine: IN PROGRESS 🔄
+> Phase 2 — Go Automation Engine: COMPLETE ✅
+> Phase 3 — UIs, Firmware & OS Hardening: IN PROGRESS 🔄
 
 ### Phase 1 — Completed
 - [x] Install Yocto host dependencies on ThinkPad
@@ -155,29 +181,64 @@ runqemu qemuarm64 nographic slirp
 - [x] `propertycore-engine.service` systemd unit auto-enabled
 - [x] All changes committed and pushed to GitHub
 
-### Phase 2 — Go Automation Engine (current focus)
-The automation engine stub (`v0.1`) provides:
-- HTTP `/health` and `/status` endpoints on `:8080`
-- TCP ping to Mosquitto to confirm MQTT broker reachability
+### Phase 2 — Go Automation Engine: COMPLETE ✅
 
-Next steps for the engine:
-- [ ] MQTT client — subscribe to device topics, publish commands
-- [ ] Device state manager — in-memory map of all device states
-- [ ] WebSocket server — push state changes to connected UIs
-- [ ] Scene engine — define and execute scenes (set of device actions)
-- [ ] Rules engine — if/then automation rules with conditions
-- [ ] SQLite integration — persist devices, scenes, users, rooms
-- [ ] REST API — full CRUD for rooms, devices, scenes, users
-- [ ] Scheduling engine — time-based scene triggers
+Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, and verified in QEMU.
 
-### Phase 3 — Planned (not started)
-- [ ] React config dashboard (engineer tool)
+| Version | Commit | Feature |
+|---|---|---|
+| v0.1 | — | HTTP `/health` + `/status`, TCP MQTT ping |
+| v0.2 | `41e32e6` | MQTT client, device state manager, REST API skeleton |
+| v0.3 | `ae6f38a` | RFC 6455 WebSocket server — push state to UIs |
+| v0.4 | `b2047da` | Scene engine — CRUD + execute |
+| v0.5 | `989fea1` | Rules engine — if/then, enable/disable, condition matching |
+| v0.6 | `8aa0432` | JSON persistence — scenes/rules survive reboots |
+| v0.7 | `ddec9e5` | Rooms + Users CRUD API with JSON persistence |
+| v0.8 | `ac78845` | Scheduling engine — time-based scene triggers |
+| v0.9 | `96f557a` | Device registry — persistent metadata, auto-registration via MQTT |
+
+**Engine API surface (all on `:8080`):**
+- `GET /health` — liveness probe
+- `GET /status` — version, uptime, MQTT status, all resource counts
+- `GET|POST /api/v1/devices` — device registry CRUD
+- `GET|PATCH|DELETE /api/v1/devices/{id}` — single device
+- `GET|POST /api/v1/scenes` — scene CRUD
+- `GET|PATCH|DELETE /api/v1/scenes/{id}` — single scene
+- `POST /api/v1/scenes/{id}/execute` — trigger scene
+- `GET|POST /api/v1/rules` — rules engine CRUD
+- `GET|PATCH|DELETE /api/v1/rules/{id}` — single rule
+- `POST /api/v1/rules/{id}/enable|disable`
+- `GET|POST /api/v1/rooms` — room CRUD
+- `GET|PATCH|DELETE /api/v1/rooms/{id}` — single room
+- `GET|POST /api/v1/users` — user CRUD (roles: owner/admin/guest, PIN omitted from API)
+- `GET|PATCH|DELETE /api/v1/users/{id}` — single user
+- `GET|POST /api/v1/schedules` — schedule CRUD
+- `GET|PATCH|DELETE /api/v1/schedules/{id}` — single schedule
+- `POST /api/v1/schedules/{id}/enable|disable`
+- `GET /ws` — WebSocket endpoint (broadcasts device state changes)
+
+**Persistence** — JSON files in `/var/lib/propertycore/`:
+`scenes.json`, `rules.json`, `rooms.json`, `users.json`, `schedules.json`, `devices.json`
+
+### Phase 3 — UIs, Firmware & OS Hardening (current focus)
+- [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
+- [ ] React config dashboard (engineer tool) — `http://[hub-ip]/admin`
 - [ ] Flutter mobile app (owner/guest control)
-- [ ] ESP32 relay module firmware (PropertyCore firmware over OEM boards)
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
+
+**Firmware — ESP32 relay (`firmware/pc-rly-wifi/`):**
+- ESP-IDF v5.x + FreeRTOS. Pure C, zero external deps beyond ESP-IDF.
+- Covers all Wi-Fi relay SKUs: set `RELAY_CHANNEL_COUNT` in `config.h`.
+- Wi-Fi STA → MQTT connect → subscribe cmd → publish state on boot/cmd/switch.
+- NVS config: `device_id`, `broker_ip`, `wifi_ssid`, `wifi_pass` (compile-time defaults if absent).
+- Physical switch inputs: GPIO interrupt → debounce → toggle relay → publish MQTT.
+- Last-will: broker publishes `{"type":"relay","online":false}` on unexpected disconnect.
+- State payload: `{"type":"relay","ch1":false,...,"chN":false}` — engine auto-registers device.
+- Cmd payload: `{"ch1":true}` — any subset of channels, others unchanged.
+- GPIO defaults (LC Technology boards): relays=16/17/18/19, switches=34/35/36/39, active-low.
 
 ---
 
@@ -189,6 +250,14 @@ Next steps for the engine:
 - **`INHIBIT_PACKAGE_STRIP=1`** — always set for Go binaries; stripping corrupts them.
 - **git HTTP/2 failures** — if `git clone` fails with curl 92, run `git config --global http.version HTTP/1.1`.
 - **QEMU SSH** — `runqemu qemuarm64 nographic slirp` → `ssh root@localhost -p 2222`
+- **Go build in recipes** — always set `GOPROXY=off GOFLAGS="-mod=mod"`. The go-native binary path: `build-qemu/tmp/sysroots-components/x86_64/go-binary-native/usr/bin/go` (Go 1.22.12).
+- **Pure stdlib only** — the engine uses zero external Go dependencies (`CGO_ENABLED=0`). Never add third-party imports.
+- **BusyBox wget in QEMU** — no `--method=PATCH/DELETE`, no `python3` on image. Use `nc` for raw DELETE. Use hardcoded IDs in verification scripts.
+- **`randomID()` not `newID()`** — ID generator is defined in `room.go` as `randomID()`. All managers call this function. Do not rename it.
+- **Mutex + persist deadlock** — in `DeviceRegistry` (and any future manager), always release the write mutex BEFORE calling `persist()`. The `persist()` method calls `GetAll()` which takes an `RLock` — holding the write lock first will deadlock.
+- **Atomic JSON writes** — `store.go` writes to a temp file then renames. Never write JSON directly to the target file.
+- **QEMU restart race** — `systemctl restart && wget` will fail (connection refused). Always send restart and the subsequent request as separate SSH commands.
+- **MQTT topic pattern** — devices publish to `propertycore/devices/{id}/state`. The engine subscribes to `propertycore/devices/+/state`. The engine publishes commands to `propertycore/devices/{id}/cmd`.
 
 ---
 
