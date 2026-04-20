@@ -11,17 +11,18 @@ import (
 )
 
 type statusResponse struct {
-	Version     string `json:"version"`
-	Hostname    string `json:"hostname"`
-	Uptime      string `json:"uptime"`
-	MQTTBroker  string `json:"mqtt_broker"`
-	MQTTAlive   bool   `json:"mqtt_connected"`
-	DeviceCount int    `json:"device_count"`
-	SceneCount  int    `json:"scene_count"`
-	RuleCount   int    `json:"rule_count"`
-	RoomCount   int    `json:"room_count"`
-	UserCount   int    `json:"user_count"`
-	WSClients   int    `json:"ws_clients"`
+	Version       string `json:"version"`
+	Hostname      string `json:"hostname"`
+	Uptime        string `json:"uptime"`
+	MQTTBroker    string `json:"mqtt_broker"`
+	MQTTAlive     bool   `json:"mqtt_connected"`
+	DeviceCount   int    `json:"device_count"`
+	SceneCount    int    `json:"scene_count"`
+	RuleCount     int    `json:"rule_count"`
+	RoomCount     int    `json:"room_count"`
+	UserCount     int    `json:"user_count"`
+	ScheduleCount int    `json:"schedule_count"`
+	WSClients     int    `json:"ws_clients"`
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -29,21 +30,22 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
-			Version:     version,
-			Hostname:    hostname,
-			Uptime:      time.Since(startTime).Round(time.Second).String(),
-			MQTTBroker:  mqtt.addr,
-			MQTTAlive:   mqtt.IsConnected(),
-			DeviceCount: state.Count(),
-			SceneCount:  scenes.Count(),
-			RuleCount:   rules.Count(),
-			RoomCount:   rooms.Count(),
-			UserCount:   users.Count(),
-			WSClients:   ws.ClientCount(),
+			Version:       version,
+			Hostname:      hostname,
+			Uptime:        time.Since(startTime).Round(time.Second).String(),
+			MQTTBroker:    mqtt.addr,
+			MQTTAlive:     mqtt.IsConnected(),
+			DeviceCount:   state.Count(),
+			SceneCount:    scenes.Count(),
+			RuleCount:     rules.Count(),
+			RoomCount:     rooms.Count(),
+			UserCount:     users.Count(),
+			ScheduleCount: scheduler.Count(),
+			WSClients:     ws.ClientCount(),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -472,6 +474,160 @@ func makeUsersHandler(um *UserManager) http.HandlerFunc {
 			if !um.Delete(id) {
 				w.WriteHeader(http.StatusNotFound)
 				fmt.Fprintf(w, `{"error":"user not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeSchedulesHandler handles all schedule CRUD and enable/disable endpoints:
+//
+//	GET    /api/v1/schedules                → list all schedules
+//	POST   /api/v1/schedules                → create schedule
+//	GET    /api/v1/schedules/{id}           → get schedule
+//	PATCH  /api/v1/schedules/{id}           → update schedule
+//	DELETE /api/v1/schedules/{id}           → delete schedule
+//	POST   /api/v1/schedules/{id}/enable    → enable schedule
+//	POST   /api/v1/schedules/{id}/disable   → disable schedule
+func makeSchedulesHandler(sm *ScheduleManager) http.HandlerFunc {
+	type patchBody struct {
+		Label   *string
+		Hour    *int
+		Minute  *int
+		Days    []string
+		DaysSet bool
+		Enabled *bool
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/schedules")
+		suffix = strings.Trim(suffix, "/")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// POST /api/v1/schedules/{id}/enable  or  /disable
+		if strings.HasSuffix(suffix, "/enable") || strings.HasSuffix(suffix, "/disable") {
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			enable := strings.HasSuffix(suffix, "/enable")
+			id := strings.TrimSuffix(suffix, "/enable")
+			id = strings.TrimSuffix(id, "/disable")
+			if !sm.SetEnabled(id, enable) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"schedule not found","id":%q}`, id)
+				return
+			}
+			s, _ := sm.Get(id)
+			if err := json.NewEncoder(w).Encode(s); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Collection: GET or POST /api/v1/schedules
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := sm.GetAll()
+				if all == nil {
+					all = []*Schedule{}
+				}
+				if err := json.NewEncoder(w).Encode(all); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var s Schedule
+				if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if s.SceneID == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"scene_id is required"}`)
+					return
+				}
+				if s.Hour < 0 || s.Hour > 23 || s.Minute < 0 || s.Minute > 59 {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"hour must be 0-23, minute must be 0-59"}`)
+					return
+				}
+				s.Enabled = true // new schedules are enabled by default
+				sm.Add(&s)
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(&s); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Single schedule: GET, PATCH, or DELETE /api/v1/schedules/{id}
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			s, ok := sm.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"schedule not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(s); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			// Decode into a raw map first so we detect which fields were provided vs omitted
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			var patch patchBody
+			if v, ok := raw["label"]; ok {
+				var s string
+				_ = json.Unmarshal(v, &s)
+				patch.Label = &s
+			}
+			if v, ok := raw["hour"]; ok {
+				var n int
+				_ = json.Unmarshal(v, &n)
+				patch.Hour = &n
+			}
+			if v, ok := raw["minute"]; ok {
+				var n int
+				_ = json.Unmarshal(v, &n)
+				patch.Minute = &n
+			}
+			if v, ok := raw["days"]; ok {
+				patch.DaysSet = true
+				_ = json.Unmarshal(v, &patch.Days)
+			}
+			if v, ok := raw["enabled"]; ok {
+				var b bool
+				_ = json.Unmarshal(v, &b)
+				patch.Enabled = &b
+			}
+			if !sm.Update(id, patch.Label, patch.Hour, patch.Minute, patch.Days, patch.DaysSet, patch.Enabled) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"schedule not found","id":%q}`, id)
+				return
+			}
+			s, _ := sm.Get(id)
+			if err := json.NewEncoder(w).Encode(s); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !sm.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"schedule not found","id":%q}`, id)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

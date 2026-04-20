@@ -129,3 +129,20 @@ func (s *Store) SaveUsers(users []*User) {
 		log.Printf("store: save users error: %v", err)
 	}
 }
+
+// LoadSchedules returns all persisted schedules, or nil if none stored yet.
+func (s *Store) LoadSchedules() []*Schedule {
+	var schedules []*Schedule
+	if err := s.loadJSON("schedules.json", &schedules); err != nil {
+		log.Printf("store: load schedules error: %v", err)
+		return nil
+	}
+	return schedules
+}
+
+// SaveSchedules persists the full schedule list atomically.
+func (s *Store) SaveSchedules(schedules []*Schedule) {
+	if err := s.saveJSON("schedules.json", schedules); err != nil {
+		log.Printf("store: save schedules error: %v", err)
+	}
+}

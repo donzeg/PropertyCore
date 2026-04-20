@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.7.0
-// Adds Rooms and Users CRUD REST API with JSON persistence.
-// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + room.go + user.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.8.0
+// Adds Scheduling Engine: time-based scene triggers with JSON persistence.
+// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + room.go + user.go + scheduler.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.7.0"
+	version     = "0.8.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -98,13 +98,22 @@ func main() {
 		log.Printf("Loaded %d user(s) from store", len(stored))
 	}
 
+	// Schedule manager — start ticker after all scenes are loaded
+	scheduler := NewScheduleManager(scenes, mqttClient, store)
+	if stored := store.LoadSchedules(); len(stored) > 0 {
+		scheduler.Load(stored)
+		log.Printf("Loaded %d schedule(s) from store", len(stored))
+	}
+	scheduler.Start()
+	defer scheduler.Stop()
+
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)
 
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, rooms, users, wsHub))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, rooms, users, scheduler, wsHub))
 	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
@@ -115,6 +124,8 @@ func main() {
 	mux.HandleFunc("/api/v1/rooms/", makeRoomsHandler(rooms))
 	mux.HandleFunc("/api/v1/users", makeUsersHandler(users))
 	mux.HandleFunc("/api/v1/users/", makeUsersHandler(users))
+	mux.HandleFunc("/api/v1/schedules", makeSchedulesHandler(scheduler))
+	mux.HandleFunc("/api/v1/schedules/", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))
 
 	srv := &http.Server{
