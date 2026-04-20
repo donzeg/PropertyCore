@@ -138,6 +138,7 @@ The central controller. A branded box installed in a wall cabinet, server room, 
 | HC-1 | Single apartment / small home | 1–6 | Up to 4 | Up to 30 | Raspberry Pi 5 (8GB) |
 | HC-3 | Large home / boutique hotel | 6–20 | Up to 16 | Up to 150 | Pi CM5 + custom carrier |
 | HC-Pro | Estate / hotel / commercial building | 20–100+ | Up to 64 | Up to 500 | Rockchip RK3588 board |
+| HC-AV | Premium home / home theater / estate AV | 6–30 | Up to 16 | Up to 200 | RK3588 + integrated AV carrier |
 
 #### SBC Selection Rationale
 
@@ -149,6 +150,7 @@ The central controller. A branded box installed in a wall cabinet, server room, 
 - Well-supported, easy to source in Nigeria and globally
 - Suitable for prototyping and early commercial units
 - Limitation: not industrial grade; must use NVMe (not SD card) in production
+- **Enclosure:** Compact slim chassis (half-1U or small DIN-mountable box). Does not require a full rack cabinet — suitable for apartments where a dedicated comms room is not present. Can be wall-mounted or shelf-mounted.
 
 **HC-3 — Raspberry Pi Compute Module 5 + Custom Carrier Board**
 - Same CM5 chip as Pi 5, industrial form factor
@@ -156,6 +158,7 @@ The central controller. A branded box installed in a wall cabinet, server room, 
 - Carrier board adds: PoE input, RS485 port, Zigbee radio (CC2652), UPS battery management, DIN rail mount, surge protection, status LEDs, RTC
 - Customers see a **PropertyCore HC-3** branded box — not a Raspberry Pi
 - This is the correct production form factor for a commercial product
+- **Enclosure:** 1U rack-mount chassis (19" rack standard — approx. 44mm H × 440mm W). Installs in the property comms cabinet alongside network switch, patch panel, and NAS. This is the standard form factor for commercial AV/automation hardware (Control4 CA-1 baseline: 42.9mm H × 442mm W).
 
 **HC-Pro — Rockchip RK3588 (e.g., FriendlyElec CM3588 or Orange Pi 5 Pro)**
 - Octa-core ARM, 8–16GB RAM
@@ -163,6 +166,7 @@ The central controller. A branded box installed in a wall cabinet, server room, 
 - Hardware H.264/H.265 video encode/decode — handles 8–16 simultaneous camera streams efficiently
 - Suitable for large hotels, estates, commercial buildings
 - Future AI feature platform: smart motion zones, occupancy analytics, anomaly detection
+- **Enclosure:** 1U rack-mount chassis (19" rack standard). Installed in server room or dedicated comms cabinet in large properties. In cascade deployments, each satellite hub also uses a 1U chassis in its floor/zone cabinet.
 
 #### What Goes Inside Every Hub (Beyond the SBC)
 
@@ -228,6 +232,135 @@ This enables:
 **This is a genuine hospitality differentiator** — especially in markets where internet reliability is inconsistent. The property's entertainment content is entirely self-contained and does not depend on the internet for delivery.
 
 Jellyfin is configured by the engineer during installation. Content is stored on the NAS. The hub handles transcoding to match each device's capability.
+
+---
+
+#### HC-AV — Integrated AV Controller Hub
+
+The HC-AV is a premium hub variant targeting properties where audio/video distribution is a primary requirement: home theaters, estates with outdoor speaker zones, hotel lobbies with video walls, and luxury homes with multi-room AV.
+
+**The concept:** Control4's CORE 5 bundles multi-zone audio streaming directly into the controller. PropertyCore can achieve the same — and go further — by working with a Shenzhen OEM/ODM manufacturer to produce a custom carrier board for the RK3588 that integrates amplifier modules, HDMI matrix silicon, and AV I/O ports directly on the same platform. The customer and engineer see one branded box that is simultaneously the automation hub and the AV matrix.
+
+**Target use cases:**
+- Home theater: projector + 7.1 surround amp, controlled from PropertyCore remote
+- Estate outdoor: 4–8 zones of weatherproof speakers driven by onboard Class D amp channels
+- Home video wall: multiple HDMI outputs driving a 2×2 or 3×3 display matrix
+- Hotel lobby / restaurant: background music zones + TV/display control from one unit
+
+**Planned Hardware Specification:**
+
+| Component | Implementation |
+|---|---|
+| Compute | Rockchip RK3588 SoC (same as HC-Pro) |
+| Audio amp | 8-zone Class D — TAS5805M per zone (or TPA3251 for higher power) |
+| Audio outputs | 8× stereo binding post / Euroblock per zone |
+| Audio inputs | 2× balanced XLR/TRS line in, 1× optical S/PDIF in |
+| HDMI outputs | 4–8× HDMI 2.0 out (video wall / zone distribution) |
+| HDMI inputs | 2–4× HDMI 2.0 in (sources: media players, streaming boxes) |
+| HDMI matrix | Lontium LT8641 or equivalent matrix switch silicon |
+| Projector control | RS232 (PJLINK protocol) + IR |
+| RS485 | Modbus for energy meters and inverter (same as HC-Pro) |
+| Zigbee | CC2652P radio (onboard) |
+| Ethernet | 2.5GbE (media-heavy workload benefits from bandwidth) |
+| Form factor | 2U rack-mount chassis (standard 19" rack) |
+| Power | 12–19V DC, suitable for DIN rail PSU in AV rack |
+
+**Audio zone control via PropertyCore:**
+- Each amp channel is a named audio zone: "Living Room," "Pool," "Master Bedroom," "Garden"
+- Source selection per zone: Spotify Connect (librespot), AirPlay (shairport-sync), local Jellyfin music, internet radio
+- Volume, EQ, and grouping controlled from mobile app, wall panel, or smart remote
+- Snapcast handles perfect synchronisation across zones (no echo in adjacent rooms)
+- Multi-zone audio scenes: "Party Mode" → pool + garden + living room all play same source at full volume; "Night Mode" → master bedroom zone at 20%
+
+**HDMI distribution:**
+- HDMI matrix routes any input source to any output display
+- Use cases: one media player to four rooms, laptop screen to projector, security camera on lobby TV
+- Controlled from PropertyCore engine — source/output switching exposed as scenes and rules
+- HDMI-CEC commands forwarded to all connected displays (power on/off, volume)
+- Video wall mode: single 4K source scaled and distributed across multiple screens (requires supported display wall controller add-on)
+
+**Projector integration (home theater):**
+- RS232 PJLINK commands: power on/off, input select, lens control
+- Scene: "Movie Mode" → lower screen → dim lights to 10% → power on projector → select HDMI 1 → set AC to 20°C silent mode
+- Automation: projector idle 30min → power off → raise screen
+
+**OEM/ODM path:**
+This is a Year 2–3 product. The approach mirrors the HC-3 custom carrier board but at full AV-rack scale:
+1. Engage an RK3588 board manufacturer (FriendlyElec, Geniatech, or Shenzhen ODM) for a carrier board design
+2. Specify the HDMI matrix silicon, amp module headers, and I/O panel
+3. PropertyCore provides the firmware (Yocto image) and AV engine driver layer
+4. Enclosure: standard 2U aluminum rack chassis, custom front panel with PropertyCore branding
+
+The amp modules (TAS5805M evaluation boards → production modules) and HDMI matrix board are sourced separately and integrated onto the carrier. This is standard ODM practice in the AV integration industry.
+
+**Software additions required:**
+The PropertyCore automation engine needs AV-specific drivers:
+- Multi-zone amp driver (I2C to TAS5805M per zone — volume, EQ, mute, grouping)
+- HDMI matrix driver (I2C/SPI to LT8641 — input/output routing, EDID management)
+- PJLINK driver (RS232 projector control)
+- Audio zone scene engine (source routing, Snapcast zone management)
+
+These extend the existing engine without changing its architecture — additional device type handlers in the same MQTT/state-manager pattern.
+
+---
+
+#### Multi-Hub Cascade (Large Deployments)
+
+For very large properties — hotels with multiple floors, large commercial estates, multi-building compounds — a single hub reaches its device limit or introduces unacceptable latency for devices far from the central unit. PropertyCore supports a **cascaded multi-hub deployment** for these cases.
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              PRIMARY HUB (HC-Pro / HC-AV)                   │
+│              Central server room / IT room                   │
+│                                                              │
+│  - Runs full automation engine (scenes, rules, schedules)   │
+│  - Hosts MQTT broker — all satellite hubs connect here      │
+│  - Hosts REST API + WebSocket server — all UIs connect here │
+│  - Single source of truth for all device state              │
+│  - Relay server connection — one outbound tunnel per site   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ LAN (Ethernet)
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+┌─────────▼──────┐  ┌───────▼────────┐  ┌────▼───────────┐
+│ SATELLITE HUB  │  │ SATELLITE HUB  │  │ SATELLITE HUB  │
+│  Floor 1       │  │  Floor 2       │  │  Pool / Garden │
+│  (HC-3)        │  │  (HC-3)        │  │  (HC-1)        │
+│                │  │                │  │                │
+│ Local MQTT     │  │ Local MQTT     │  │ Local MQTT     │
+│ bridge agent   │  │ bridge agent   │  │ bridge agent   │
+│                │  │                │  │                │
+│ Floor 1 relays │  │ Floor 2 relays │  │ Pool pump      │
+│ Floor 1 ACs    │  │ Floor 2 ACs    │  │ Garden lights  │
+│ Floor 1 cameras│  │ Floor 2 cameras│  │ Outdoor ACs    │
+└────────────────┘  └────────────────┘  └────────────────┘
+```
+
+**How it works:**
+- Each satellite hub runs a **lightweight MQTT bridge agent** — not the full automation engine
+- The bridge agent connects all local devices to the primary hub's MQTT broker over LAN
+- Devices publish their state to the local MQTT instance; the bridge forwards to the primary hub
+- The primary hub issues commands; the bridge delivers them to local devices
+- To all connected UIs (app, wall panels, dashboard), the entire installation appears as a **single unified system** — no awareness of satellite boundaries
+
+**Why cascading is better than one big hub:**
+- **Local latency** — a light switch on floor 3 is controlled by the floor 3 satellite's local MQTT, not a round trip to the server room
+- **Resilience** — if the primary hub reboots, satellite hubs continue to operate their local devices; local scenes and schedules still run
+- **Scale without redesign** — adding a new wing = deploy a new satellite hub, connect to LAN, register with primary
+- **Physical wiring** — each satellite hub sits in the electrical panel of its floor/zone, close to the devices it manages
+
+**Deployment scenarios:**
+| Property | Primary | Satellites |
+|---|---|---|
+| Hotel (8 floors) | HC-Pro in server room | HC-3 per floor (8 units) |
+| Large estate (main + 3 annexes) | HC-AV in main house | HC-1 per annex |
+| Office building (4 wings) | HC-Pro in comms room | HC-1 per wing |
+
+**Current status:** Cascade deployment is a **Phase 3 feature**. The engine architecture will be designed from Phase 2 to accommodate it (MQTT bridge pattern, device namespace by hub ID) so no rework is required when it ships.
+
+---
 
 ### 4.2 Smart Switch / Relay Modules (Lighting / Power)
 Initially sourced as OEM bare boards (2, 4, 6 channel variants are widely available), flashed with PropertyCore firmware.
@@ -619,13 +752,14 @@ PropertyCore is not software a customer downloads or installs themselves. It fol
 7. **Handover:** The engineer hands over the system to the customer. Customer-facing interaction is the mobile app only. The configuration dashboard is installer-access only.
 
 ### Hub SKU Tiers (Planned)
-| SKU | Target | Rooms | Cameras | Devices |
-|---|---|---|---|---|
-| PropertyCore HC-1 | Single apartment / small home | 1–6 | Up to 4 | Up to 30 |
-| PropertyCore HC-3 | Large home / boutique hotel | 6–20 | Up to 16 | Up to 150 |
-| PropertyCore HC-Pro | Estate / hotel / commercial | 20–100+ | Up to 64 | Up to 500 |
+| SKU | Target | Rooms | Cameras | Devices | Form Factor |
+|---|---|---|---|---|---|
+| PropertyCore HC-1 | Single apartment / small home | 1–6 | Up to 4 | Up to 30 | Compact slim / DIN mount |
+| PropertyCore HC-3 | Large home / boutique hotel | 6–20 | Up to 16 | Up to 150 | 1U rack (19") |
+| PropertyCore HC-Pro | Estate / hotel / commercial | 20–100+ | Up to 64 | Up to 500 | 1U rack (19") |
+| PropertyCore HC-AV | Premium home / estate / hotel AV | 6–30 | Up to 16 | Up to 200 | 2U rack (19") |
 
-Each tier is the same platform — different hardware spec (CPU, RAM, storage) inside the same branded enclosure family.
+All HC-3 and above are **rack-mounted and cabinet-installed** — the standard form factor for professionally deployed automation and AV systems. The engineer installs the hub in the property's comms/AV rack cabinet, typically in a utility room, server room, or electrical cabinet. The HC-AV occupies 2U due to the integrated amp and HDMI matrix hardware. The HC-1 is the only tier not requiring a rack cabinet.
 
 ---
 

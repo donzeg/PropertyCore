@@ -1,6 +1,6 @@
 # PropertyCore — UI Scope
 
-> Version 0.4 — April 2026  
+> Version 0.5 — April 2026  
 > Status: Concept / Pre-build  
 > Covers all four PropertyCore UI surfaces: Web Config Dashboard, Mobile App, Wall Panel Kiosk, Smart Remote
 
@@ -311,16 +311,68 @@ PropertyCore uses a tiered TV control strategy:
 - **MVP / Phase 1 — IR only:** `PC-AV-IR` IR blaster per room. Wireless, no physical connection to TV. Handles power, input, channel, volume. Works with every TV regardless of brand. DStv, GOtv, StarTimes, Canal+ decoders controlled the same way.
 - **Phase 2 — HDMI-CEC via PC-AV-CEC:** A USB-CEC dongle plugged into the TV's HDMI port. Enables two-way communication (TV confirms state changes). Better than IR-only but requires physical HDMI access at install time.
 - **Long term — PC-AV-BOX Media Box:** A PropertyCore-branded per-room ARM media player with HDMI out and native CEC. Runs Jellyfin client, Spotify Connect receiver, and PropertyCore UI. Replaces Chromecast/Fire TV Stick with a fully integrated PropertyCore device. HDMI-CEC control and media playback in one box.
+- **HC-AV deployments — Built-in HDMI matrix:** When the property uses a PC-HUB-HCAV, the HDMI matrix is built into the hub. Source routing (which input goes to which room/display) is configured in the dedicated AV Hub section (Section 19b) below.
 
 **Config screens:**
-- TV control method per room (IR only / CEC adapter / Media Box)
+- TV control method per room (IR only / CEC adapter / Media Box / HC-AV built-in matrix)
 - IR blaster room zone mapping (which PC-AV-IR covers which room)
 - IR code library per room (TV brand, decoder brand, projector brand) — includes DStv, GOtv, StarTimes, Canal+ decoders
 - Custom IR code learning (from PC-AV-IRL)
-- HDMI matrix input / output routing config
+- HDMI matrix input / output routing config (for external PC-AV-HDMI or HC-AV built-in)
 - PC-AV-BOX room assignment (long-term — enables native Jellyfin + CEC in one device)
 - HDMI-CEC device map per room (which HDMI input = which source)
 - AV scene integration (e.g., "Movie Mode" sets input + dims lights + closes curtains)
+
+---
+
+#### 19b. AV Hub Configuration *(HC-AV deployments only)*
+Visible only when the installed hub is a PC-HUB-HCAV. Covers the built-in integrated AV hardware: 8-zone amplifier, HDMI matrix, and projector control.
+
+**Audio Zone Amplifier Setup**
+- Zone labelling (assign each amp channel to a room or area: Living Room, Master Bedroom, Pool, Garden, Lobby, etc.)
+- Zone output level trim (compensate for different speaker sensitivity and room sizes)
+- Maximum volume limit per zone (hotel rooms: limit to 80% to prevent disturbance)
+- Zone enable / disable (disable unused channels)
+- Zone grouping (predefined groups for multi-zone scenes: "Downstairs", "Outdoor", "Full Property")
+- Amplifier protection status (thermal, short-circuit indicator per channel)
+- Default zone state on hub startup (which zones start active and at what volume)
+
+**Speaker and Line Input**
+- Speaker impedance per zone (4Ω / 8Ω — informs protection and power limits)
+- Balanced line input assignment (XLR/TRS input 1/2 — assign to zone source or mix layer)
+- Optical S/PDIF input assignment (source for which zone)
+- Sub-woofer output config (if a zone is configured as subwoofer-only output)
+
+**HDMI Matrix Configuration**
+- Input source labelling (HDMI Input 1 — "Media Player", HDMI Input 2 — "Gaming Console", HDMI Input 3 — "Satellite Receiver", etc.)
+- Output labelling (HDMI Output 1 — "Living Room TV", Output 2 — "Master Bedroom", Output 3 — "Home Cinema Projector", Output 4 — "Patio Display", etc.)
+- Default routing matrix (which input goes to which output on hub startup)
+- EDID management (set EDID per output — tells source what resolution the connected display supports)
+- HDMI-CEC pass-through enable per output (controls downstream display power and volume)
+
+**Projector Control (RS232 / PJLINK)**
+- Projector brand and model selection (for PJLINK command library)
+- RS232 baud rate and COM port assignment
+- PJLINK password (if projector requires it)
+- Warm-up time (seconds to wait after power-on before sending input commands)
+- Cool-down time (fan run time after power-off — prevent re-power during cool-down)
+- Projector status polling interval
+- Motorised screen relay assignment (which PropertyCore relay channel controls screen up/down)
+- Test: send power on / off / input select commands from dashboard
+
+**AV Scenes**
+AV-specific scene templates that combine multiple AV hub actions:
+- **Movie Mode:** Projector on (after warm-up) → HDMI matrix routes media player to projector output → screen down → lights dim to 10% → audio zone set to surround level → AC to silent mode
+- **Music Mode:** Audio zones grouped → source set to Spotify Connect or Media Library → volume to ambient level
+- **Party Mode:** All indoor + outdoor audio zones grouped → volume raised → lights set to colour scene
+- **Presentation Mode:** HDMI matrix routes laptop input to all display outputs → lights full bright → audio muted
+- Custom AV scene builder: select HDMI routing actions + audio zone actions + relay actions in sequence with delays
+
+**AV System Health**
+- Per-channel amp thermal reading (temperature per TAS5805M zone IC)
+- HDMI matrix HDCP status per port
+- Projector lamp hours (pulled via PJLINK status query)
+- Active HDMI connections per port (signal present / no signal)
 
 ---
 
@@ -620,7 +672,8 @@ PropertyCore treats media sources in three tiers:
 
 **Audio Zone Configuration**
 - Define audio zones (e.g., Living Room, Master Bedroom, Pool Area, Lobby)
-- Assign amplifier outputs to zones (PC-AUD-AMP4 / PC-AUD-AMP8 channel assignment)
+- **Amplifier source:** Select whether audio zones are driven by the hub's built-in amp (HC-AV) or by external PC-AUD-AMP4 / PC-AUD-AMP8 units. HC-AV deployments configure zones directly in Section 19b; external amp deployments configure zone-to-channel mapping here.
+- Assign amplifier outputs to zones (for external PC-AUD-AMP: channel assignment per amp unit)
 - Zone volume limits (max volume per zone — prevents disturbance)
 - Zone grouping for Snapcast sync (define which zones play together)
 - Default source per zone at property startup
@@ -922,7 +975,7 @@ The following subset is sufficient for a first pilot installation:
 |---|---|
 | Must have | System Overview, Property Config, Devices, Relay Config, AC Gateway Config, Scenes & Automation, Users, Network |
 | Should have | Dimmer Config, Curtain Config, Energy (inverter + dashboard), Hospitality Profile, Intercom Config, Entertainment & Media (Jellyfin + audio zones) |
-| Phase 2 | Integrations, Reporting, Multi-site, Visitor Management, API/Webhook, Branding, Installer Notes |
+| Phase 2 | AV Hub Config (19b — HC-AV deployments), Integrations, Reporting, Multi-site, Visitor Management, API/Webhook, Branding, Installer Notes |
 
 ### Mobile App MVP (Phase 1)
 | Priority | Screens |
@@ -959,5 +1012,5 @@ The following subset is sufficient for a first pilot installation:
 
 ---
 
-*UI Scope v0.4 — April 2026. Concept stage.*  
+*UI Scope v0.5 — April 2026. Concept stage.*  
 *All screens represent planned functionality. None are built yet.*

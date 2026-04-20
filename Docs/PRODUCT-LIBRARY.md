@@ -1,6 +1,6 @@
 # PropertyCore — Product Library
 
-> Version 0.3 — April 2026  
+> Version 0.4 — April 2026  
 > Status: Concept / Pre-build  
 > Reference: HDL Buspro, Control4, Loxone hardware ecosystems
 
@@ -42,9 +42,10 @@ The brain of every PropertyCore installation. Runs the platform software. One Hu
 
 | SKU | Name | Target | Key Specs |
 |---|---|---|---|
-| PC-HUB-HC1 | PropertyCore Hub HC-1 | Small home / apartment | RPi 5 (8GB), 256GB NVMe, Zigbee, RS485, Ethernet, Wi-Fi, UPS circuit |
-| PC-HUB-HC3 | PropertyCore Hub HC-3 | Large home / boutique hotel | Pi CM5 custom carrier, 512GB NVMe, dual RS485, Zigbee, PoE out, UPS |
-| PC-HUB-HCPRO | PropertyCore Hub HC-Pro | Estate / hotel / commercial | RK3588, 16GB RAM, 512GB NVMe, NPU, quad RS485, Zigbee, dual Ethernet |
+| PC-HUB-HC1 | PropertyCore Hub HC-1 | Small home / apartment | RPi 5 (8GB), 256GB NVMe, Zigbee, RS485, Ethernet, Wi-Fi, UPS circuit. Compact slim chassis — no rack cabinet required. |
+| PC-HUB-HC3 | PropertyCore Hub HC-3 | Large home / boutique hotel | Pi CM5 custom carrier, 512GB NVMe, dual RS485, Zigbee, PoE out, UPS. **1U rack-mount 19" chassis.** |
+| PC-HUB-HCPRO | PropertyCore Hub HC-Pro | Estate / hotel / commercial | RK3588, 16GB RAM, 512GB NVMe, NPU, quad RS485, Zigbee, dual Ethernet. **1U rack-mount 19" chassis.** |
+| PC-HUB-HCAV | PropertyCore Hub HC-AV | Premium home / home theater / estate AV | RK3588 + integrated AV carrier. 8-zone Class D amp (TAS5805M), 4–8× HDMI out, 2–4× HDMI in (Lontium matrix), RS232 PJLINK projector control, balanced XLR audio in, RS485, Zigbee, 2.5GbE. **2U rack-mount 19" chassis.** Year 2–3 product. |
 
 **Common Hub Features (all tiers):**
 - Embedded Linux (Yocto custom image in production)
@@ -58,7 +59,6 @@ The brain of every PropertyCore installation. Runs the platform software. One Hu
 - Surge protection on power input (12V DC)
 - Gigabit Ethernet
 - USB 3.0 (service + external storage)
-- DIN rail mount option
 - Passive cooling (no fan)
 - OTA update support
 - WireGuard relay tunnel client (remote access)
@@ -68,6 +68,14 @@ The brain of every PropertyCore installation. Runs the platform software. One Hu
 - Spotify Connect endpoint — librespot (built-in)
 - AirPlay 2 receiver — shairport-sync (built-in)
 - IPTV server — Tvheadend (built-in)
+
+**Enclosure and form factor:**
+- **HC-1:** Compact slim chassis or DIN-rail mount. No rack cabinet required. Suitable for apartments and small homes without a dedicated comms room.
+- **HC-3 / HC-Pro:** 1U rack-mount (19", approx 44mm H × 440mm W). Installed in the property's comms/AV rack cabinet — same cabinet as network switch, NAS, patch panel. All commercial and hotel installations are rack-based. Reference: Control4 CA-1 is 42.9mm H × 442mm W, 1U standard.
+- **HC-AV:** 2U rack-mount (19"). Requires 2U due to integrated 8-zone amp, HDMI matrix, and AV I/O panel. Designed to be the centrepiece of a property AV rack.
+
+**Multi-hub cascade (large deployments):**
+For hotels and large estates, multiple hubs can be deployed in a cascade — one primary HC-Pro/HC-AV in the main server room, and satellite HC-3 or HC-1 units in per-floor or per-zone cabinets. Each satellite runs a lightweight MQTT bridge agent and reports to the primary hub. All UIs see one unified system. See CONCEPT.md for full cascade architecture.
 
 ---
 
@@ -397,6 +405,8 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 - OTA firmware updates
 - Sourcing: OEM class-D multi-zone amplifier boards, rebrand and firmware integration
 
+> **Note:** For deployments using **PC-HUB-HCAV**, the 8-zone Class D amplifier is **built into the hub** — the PC-AUD-AMP4 / PC-AUD-AMP8 external units are not required. The HC-AV also includes an integrated HDMI matrix, eliminating the need for PC-AV-HDMI as a separate module. External PC-AUD-AMP units are for non-HC-AV deployments (HC-1, HC-3, HC-Pro) where standalone audio amplification is required.
+
 **Media Source Architecture (software — runs on hub):**
 
 | Source | Type | Who Uses It |
@@ -418,7 +428,7 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 
 | Category | SKUs Planned |
 |---|---|
-| Hub / Controller | 3 |
+| Hub / Controller | 4 |
 | Relay Modules | 6 |
 | Dimmer Modules | 4 |
 | Curtain Controllers | 3 |
@@ -438,7 +448,7 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 | AV / IR Control | 5 |
 | Network / Gateways | 5 |
 | Audio / Media Distribution | 5 |
-| **Total** | **85 SKUs** |
+| **Total** | **86 SKUs** |
 
 ---
 
@@ -454,9 +464,10 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 | Wall panels | OEM Android/Linux wall panel boards — install PropertyCore kiosk app |
 | Keypads | OEM glass/plastic keypad boards — reflash |
 | Smart Remote V1 | Custom PCB — ESP32-S3 + LVGL (PropertyCore original design) |
-| Hub HC-1 | Raspberry Pi 5 + carrier board + custom enclosure |
-| Hub HC-3 | Pi CM5 + custom carrier board (PropertyCore original design) |
-| Hub HC-Pro | RK3588 board + custom enclosure |
+| Hub HC-1 | Raspberry Pi 5 + compact enclosure + custom carrier board |
+| Hub HC-3 | Pi CM5 + custom carrier board (PropertyCore original design) + 1U rack chassis |
+| Hub HC-Pro | RK3588 board + custom enclosure + 1U rack chassis |
+| Hub HC-AV | RK3588 + custom AV carrier board (integrated amp + HDMI matrix) + 2U rack chassis — ODM engagement with Shenzhen manufacturer. Year 2–3. |
 | Access control | OEM electric lock / RFID boards — integrate via Wiegand or RS485 |
 | Energy meters | Standard DIN rail RS485 Modbus meters (DTSU666 / compatible) |
 | Audio amplifiers | OEM class-D multi-zone amplifier boards — rebrand and integrate via Snapcast |
@@ -466,5 +477,5 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 
 ---
 
-*Product Library v0.3 — April 2026. Concept stage.*  
+*Product Library v0.4 — April 2026. Concept stage.*  
 *All SKUs represent planned products. None are in production.*
