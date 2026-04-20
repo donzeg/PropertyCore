@@ -77,6 +77,29 @@ The OS image must:
 │           ├── propertycore-engine_0.1.bb  ← v0.1 recipe (archived)
 │           ├── ...                         ← v0.2 – v0.8 recipes (archived)
 │           └── propertycore-engine_0.9.bb  ← current active recipe
+├── dashboard/                       ← React config dashboard (engineer install tool)
+│   ├── package.json                 ← Vite + React + TypeScript + Tailwind CSS v3
+│   ├── vite.config.ts               ← base=/admin/, dev proxy → :8080
+│   ├── tsconfig.json
+│   ├── tailwind.config.cjs
+│   ├── postcss.config.cjs
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx / App.tsx       ← Entry + React Router (basename=/admin)
+│       ├── types.ts                 ← All TypeScript interfaces (HubStatus, Device, Scene, etc.)
+│       ├── api.ts                   ← Fetch wrappers for all engine REST endpoints + WebSocket URL
+│       ├── index.css                ← Tailwind directives + .btn-primary component
+│       ├── components/
+│       │   ├── Layout.tsx           ← Sidebar nav + main content outlet
+│       │   └── Modal.tsx            ← Reusable modal dialog
+│       └── pages/
+│           ├── Overview.tsx         ← Hub status + resource counts + live WebSocket
+│           ├── Rooms.tsx            ← Room CRUD (also exports shared primitives: Table, Field, etc.)
+│           ├── Devices.tsx          ← Device list, room assignment, live state preview
+│           ├── Scenes.tsx           ← Scene CRUD + execute
+│           ├── Rules.tsx            ← Rules CRUD + enable/disable toggle
+│           ├── Schedules.tsx        ← Schedule CRUD + enable/disable toggle
+│           └── Users.tsx            ← User CRUD (owner/admin/guest, PIN)
 ├── firmware/
 │   └── pc-rly-wifi/                 ← ESP32 Wi-Fi relay firmware (PC-RLY-xCH-W)
 │       ├── CMakeLists.txt           ← ESP-IDF project root
@@ -222,12 +245,28 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 
 ### Phase 3 — UIs, Firmware & OS Hardening (current focus)
 - [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
-- [ ] React config dashboard (engineer tool) — `http://[hub-ip]/admin`
+- [x] React config dashboard v0.1 — `dashboard/` (Vite + React + TypeScript + Tailwind)
+- [ ] Yocto recipe — serve dashboard from hub (nginx or Go engine static files)
 - [ ] Flutter mobile app (owner/guest control)
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
+
+**Dashboard v0.1 (`dashboard/`):**
+- Vite 5 + React 18 + TypeScript + Tailwind CSS v3.
+- Served at `http://[hub-ip]/admin` (base path `/admin/`).
+- Dev: `cd dashboard && npm install && npm run dev` (proxy → engine :8080).
+- Build: `npm run build` → `dist/` (static files for nginx or engine to serve).
+- Implements UI-SCOPE sections backed by current engine API:
+  - Overview (§2): /status, WS live updates, resource counts
+  - Rooms (§4): CRUD with floor assignment
+  - Devices (§5): list, room assignment, online badge, live state preview
+  - Scenes (§13a): CRUD + execute button
+  - Rules (§13b): CRUD + enable/disable toggle
+  - Schedules (§13c): CRUD + enable/disable toggle
+  - Users (§21): CRUD (owner/admin/guest, PIN)
+  - All other §(1, 6–12, 14–20, 22–35) show as "Coming soon" stubs in sidebar.
 
 **Firmware — ESP32 relay (`firmware/pc-rly-wifi/`):**
 - ESP-IDF v5.x + FreeRTOS. Pure C, zero external deps beyond ESP-IDF.
