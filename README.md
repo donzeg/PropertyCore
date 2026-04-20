@@ -27,7 +27,7 @@ A hotel room controller that costs $300 from a US vendor could be built, support
 | Climate | AC units (IR + smart gateway) |
 | Power | Energy monitoring, generator switching |
 | Access | Gate controllers, door locks |
-| Entertainment | TV/AV scene control, smart remote |
+| Entertainment | TV/AV scene control, local media streaming (Jellyfin), multi-room audio, IR/CEC TV control, smart remote |
 | Guest/Tenant UX | Mobile app, wall panel, smart remote |
 | Operations | Housekeeping, maintenance alerts, dashboards |
 
@@ -94,7 +94,7 @@ PropertyCore does not manufacture bare PCBs from scratch initially. The strategy
 1. **Source OEM bare boards** — Chinese manufacturers (Shenzhen ecosystem) produce wall switch modules, dimmer boards, relay modules, AC controllers, and wall panels as unbranded or white-label hardware. Many Tuya-branded sellers use the same physical boards under different names.
 2. **Flash PropertyCore firmware** — buy the bare board, replace the vendor firmware with our own ESP-IDF / Zephyr firmware that speaks the PropertyCore protocol.
 3. **Brand and certify** — enclosure, label, and certify under the PropertyCore brand.
-4. **Build custom hardware over time** — as volumes grow, design and manufacture original PCBs for differentiated products (the smart remote, hub, custom form factors).
+4. **Build custom hardware over time** — as volumes grow, design and manufacture original PCBs for differentiated products (the smart remote, hub, wall panel, and eventually the **PropertyCore Media Box (PC-AV-BOX)** — a per-room ARM media player with HDMI out, native CEC, and Jellyfin client).
 
 This is how dozens of KNX and Zigbee hardware vendors operate — the electronics are commodity, the value is in the firmware, platform integration, and brand.
 

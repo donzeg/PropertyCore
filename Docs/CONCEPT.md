@@ -95,17 +95,17 @@ The system has three tiers: the cloud relay layer, the on-site hub layer, and th
 **UI Layer (served from Hub locally, accessed via Relay remotely)**
 
 ```
-┌────────────────┐  ┌──────────────────────┐  ┌─────────────────┐
-│  Mobile App    │  │  Web Config Dashboard │  │  Wall Panel /   │
-│  (Flutter)     │  │  (React + TypeScript) │  │  Smart Remote   │
-│                │  │                       │  │  (LVGL / kiosk) │
-│  Guest/owner   │  │  Installer/engineer   │  │  In-room UI     │
-│  room control  │  │  tool — not for       │  │                 │
-│  surveillance  │  │  end customers        │  │                 │
-│  scenes, locks │  │                       │  │                 │
-└───────┬────────┘  └──────────┬────────────┘  └────────┬────────┘
-        │                      │                         │
-        └──────────────────────┴─────────────────────────┘
+┌────────────────┐  ┌──────────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Mobile App    │  │  Web Config Dashboard │  │  Wall Panel     │  │  Smart Remote   │
+│  (Flutter)     │  │  (React + TypeScript) │  │  (Flutter kiosk)│  │  (LVGL V1 /     │
+│                │  │                       │  │                 │  │  Flutter V2)    │
+│  Guest/owner   │  │  Installer/engineer   │  │  In-room guest  │  │  Handheld       │
+│  room control  │  │  tool — not for       │  │  wall-mounted   │  │  remote UI      │
+│  surveillance  │  │  end customers        │  │  controller     │  │  (per room)     │
+│  scenes, locks │  │                       │  │                 │  │                 │
+└───────┬────────┘  └──────────┬────────────┘  └────────┬────────┘  └────────┬────────┘
+        │                      │                         │                    │
+        └──────────────────────┴─────────────────────────┴────────────────────┘
                                │
                     WebSocket (local) or
                     Relay tunnel (remote)
@@ -246,7 +246,7 @@ Controls split-unit air conditioners via IR + monitoring.
 - IR blaster with feedback
 - Temperature + humidity sensor
 - Current clamp (AC consumption monitoring)
-- Supports: Hisense, LG, Samsung, Panasonic, Daikin
+- Supports: Hisense, LG, Samsung, Panasonic, Daikin, Midea, Gree, Haier, Aux
 - Works even if AC remote is lost
 
 ### 4.4 Energy Monitoring — Meters + Inverter System
@@ -396,7 +396,7 @@ Handheld premium property remote. See [remote-concept/](./remote-concept/).
 **V2 — Linux Based (future)**
 - ARM SoC + 4.7" display
 - Embedded Linux
-- Qt/Flutter UI
+- Flutter UI
 - SIP calling (intercom)
 - Camera feed preview
 - Higher cost, hotel suite tier
@@ -404,9 +404,10 @@ Handheld premium property remote. See [remote-concept/](./remote-concept/).
 ### 4.6 Wall Panel
 Flush-mounted touchscreen controller per room.
 
-- 4" or 7" capacitive display
-- Shows: scene buttons, AC status, lights, DND/MUR (Do Not Disturb / Make Up Room)
+- 4", 7", or 10" capacitive IPS display
+- Shows: scene buttons, AC status, lights, DND/MUR (Do Not Disturb / Make Up Room), media controls, doorbell/intercom
 - Replaces traditional hotel room panel
+- **PoE powered** — no separate power cable needed; single Ethernet cable handles data and power
 - **OEM sourcing:** Many Chinese manufacturers sell bare Android or Linux wall panel boards in standard EU/UK flush-mount sizes. PropertyCore UI is installed as a kiosk app over Android, or native on embedded Linux.
 - These same boards are sold under dozens of brand names on AliExpress/Alibaba — the board is commodity, the software is the product.
 - Future: custom enclosure + PropertyCore-branded face plate
@@ -416,6 +417,31 @@ Flush-mounted touchscreen controller per room.
 - Service requests (housekeeping, maintenance)
 - Check-in / check-out (future)
 - Available on Android and iOS
+
+### 4.8 PropertyCore Media Box (PC-AV-BOX) — Long-Term Product
+A PropertyCore-branded per-room media player. HDMI output directly to the room TV. Controlled by the hub over the local network.
+
+**Why this exists:**
+The PropertyCore Hub is a headless device installed in an electrical cabinet — it has no HDMI port. HDMI-CEC (two-way TV control over HDMI) and native local media streaming to a room TV both require a device physically connected to the TV. Rather than depending on a third-party Chromecast, Fire TV Stick, or Apple TV, PropertyCore will ship its own per-room device.
+
+**Capabilities:**
+- HDMI output to room TV (1080p / 4K)
+- HDMI-CEC — two-way TV control (power, input, volume) without IR line-of-sight
+- Jellyfin client — plays local hotel content library directly on the TV (no guest device required)
+- Spotify Connect receiver — room TV appears as a Spotify output device
+- PropertyCore kiosk UI — property information, room controls, welcome screen
+- Snapcast audio endpoint — participates in multi-room audio zones
+- Ethernet + Wi-Fi
+- USB-C power
+- PropertyCore firmware (ARM Linux)
+
+**Deployment model:**
+One PC-AV-BOX per room. Managed centrally from the hub dashboard. OTA firmware updates pushed from hub.
+
+**Timeline:**
+MVP installs use `PC-AV-IR` IR blaster for TV control (no HDMI connection required). `PC-AV-CEC` (USB-CEC dongle) is Phase 2. PC-AV-BOX is a long-term product once the platform has established market presence.
+
+**OEM sourcing:** Custom PCB design on an ARM SoC (RK3326-class or equivalent). Same OEM-then-rebrand approach as other PropertyCore hardware, with PropertyCore firmware replacing vendor software.
 
 ---
 
@@ -436,6 +462,9 @@ Responsibilities:
 - FFmpeg pipeline manager (camera stream ingestion, recording, transcoding)
 - Relay tunnel client (maintains outbound connection to PropertyCore relay server)
 - OTA update manager (receives and applies firmware updates to connected devices)
+- Snapcast server manager (multi-room audio zone control)
+- IR command dispatcher (sends commands to PC-AV-IR blasters per room)
+- PC-AV-BOX controller (manages per-room media box fleet over network)
 
 ### 5.2 Hub — Web Configuration Dashboard
 **Framework: React + TypeScript**
@@ -482,6 +511,23 @@ End-user app features:
 - **Rolling storage** — recordings stored as MP4 on hub's local drive with configurable retention (7/14/30 days)
 - **Motion events** — FFmpeg motion detection triggers notification + clip save
 
+### 5.5a Entertainment & Media Stack
+All services run on the hub. No cloud dependency. No licensing cost.
+
+| Service | Software | Role |
+|---|---|---|
+| Local media server | **Jellyfin** | Serves movies, TV shows, music from NAS to any device on LAN |
+| Multi-room audio | **Snapcast** | Perfectly synchronised audio across lobby, corridors, pool areas |
+| Spotify Connect | **librespot** | Hub appears as a Spotify Connect speaker — guest streams from their own Spotify account |
+| AirPlay 2 | **shairport-sync** | iPhone / Mac casts audio to PropertyCore speakers |
+| IPTV | **Tvheadend** | Restreams cable / satellite IPTV to any room or device |
+| Internet Radio | Custom Go player | Stream URL-based radio without subscription |
+
+**Per-room media playback:**
+- With **PC-AV-IR** (MVP): hub sends IR commands to control TV power/input. Guest uses their own device for streaming content.
+- With **PC-AV-CEC** (Phase 2): USB-CEC dongle enables two-way TV control without IR line-of-sight.
+- With **PC-AV-BOX** (long term): per-room media box provides Jellyfin, Spotify Connect, and PropertyCore UI natively on the TV. No guest device required for hotel content.
+
 ### 5.6 Database Layer
 | Data Type | Database | Reason |
 |---|---|---|
@@ -504,6 +550,8 @@ Docker containers on the hub isolate the application stack from the OS, making O
 | Smart remote V1 | ESP-IDF + LVGL (UI framework) |
 | Zigbee sensors / scene buttons | Zephyr RTOS or vendor SDK |
 | Wall panel (Android-based OEM) | Android kiosk app (Flutter) |
+| Smart remote V2 | Embedded Linux + Flutter |
+| PC-AV-BOX (Media Box) | ARM Linux + PropertyCore firmware |
 
 ### 5.9 Full Stack Summary
 | Layer | Technology |
@@ -514,6 +562,11 @@ Docker containers on the hub isolate the application stack from the OS, making O
 | Mobile app | Flutter |
 | Remote UI (wall panel) | Flutter kiosk / LVGL |
 | Remote UI (smart remote) | LVGL (C) |
+| Multi-room audio | Snapcast |
+| Spotify Connect | librespot |
+| AirPlay 2 | shairport-sync |
+| IPTV | Tvheadend |
+| Media box firmware (PC-AV-BOX) | ARM Linux + PropertyCore firmware |
 | Real-time UI updates | WebSockets |
 | Camera streaming | FFmpeg + WebRTC |
 | Remote access | WebSocket tunnel + WireGuard (VPN) |

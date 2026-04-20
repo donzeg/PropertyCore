@@ -1,6 +1,6 @@
 # PropertyCore — UI Scope
 
-> Version 0.3 — April 2026  
+> Version 0.4 — April 2026  
 > Status: Concept / Pre-build  
 > Covers all four PropertyCore UI surfaces: Web Config Dashboard, Mobile App, Wall Panel Kiosk, Smart Remote
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-PropertyCore has three separate user interfaces, each serving a distinct audience:
+PropertyCore has four separate user interfaces, each serving a distinct audience:
 
 | Surface | Audience | Tech | Access Method |
 |---|---|---|---|
@@ -306,12 +306,21 @@ Configuration for security zones and alarm response.
 #### 19. AV / IR Control
 Configuration for AV distribution and IR control.
 
+**TV Control Approach**
+PropertyCore uses a tiered TV control strategy:
+- **MVP / Phase 1 — IR only:** `PC-AV-IR` IR blaster per room. Wireless, no physical connection to TV. Handles power, input, channel, volume. Works with every TV regardless of brand. DStv, GOtv, StarTimes, Canal+ decoders controlled the same way.
+- **Phase 2 — HDMI-CEC via PC-AV-CEC:** A USB-CEC dongle plugged into the TV's HDMI port. Enables two-way communication (TV confirms state changes). Better than IR-only but requires physical HDMI access at install time.
+- **Long term — PC-AV-BOX Media Box:** A PropertyCore-branded per-room ARM media player with HDMI out and native CEC. Runs Jellyfin client, Spotify Connect receiver, and PropertyCore UI. Replaces Chromecast/Fire TV Stick with a fully integrated PropertyCore device. HDMI-CEC control and media playback in one box.
+
+**Config screens:**
+- TV control method per room (IR only / CEC adapter / Media Box)
 - IR blaster room zone mapping (which PC-AV-IR covers which room)
-- IR code library per room (TV brand, decoder brand, projector brand) — includes DStv, GOtv, StarTimes decoders
+- IR code library per room (TV brand, decoder brand, projector brand) — includes DStv, GOtv, StarTimes, Canal+ decoders
 - Custom IR code learning (from PC-AV-IRL)
 - HDMI matrix input / output routing config
-- HDMI-CEC enable per room (smarter TV power/input/volume control over HDMI without IR)
-- AV scene integration (e.g., "Movie Mode" sets HDMI routing + dims lights + closes curtains)
+- PC-AV-BOX room assignment (long-term — enables native Jellyfin + CEC in one device)
+- HDMI-CEC device map per room (which HDMI input = which source)
+- AV scene integration (e.g., "Movie Mode" sets input + dims lights + closes curtains)
 
 ---
 
@@ -502,18 +511,19 @@ Certified third-party integrations — the equivalent of Control4 drivers or Ale
 | Snapcast | Hub-native | Multi-room audio sync — same music across lobby, corridors, pool simultaneously |
 | Internet Radio | Hub-native | Stream URL-based radio stations — no subscription, ideal for lobby background music |
 | IPTV (Tvheadend) | Hub-native | Cable or satellite IPTV restreaming to any room or device on the network |
+| PC-AV-BOX (PropertyCore Media Box) | Hub-native on box | Per-room ARM media player — HDMI out to TV, CEC native, Jellyfin client + Spotify Connect + PropertyCore UI. Long-term product. Replaces Chromecast/Fire TV Stick with a fully integrated PropertyCore device. |
 
-*External device control (PropertyCore controls the device via IR / HDMI-CEC — does not serve the content):*
+*External device control (MVP: IR via PC-AV-IR. Phase 2: HDMI-CEC via PC-AV-CEC or PC-AV-BOX. PropertyCore does not serve this content):*
 
 | Integration | Tier | What It Unlocks |
 |---|---|---|
-| Netflix | External device | Scene/IR control of Smart TV or streaming stick running Netflix |
-| YouTube / YouTube Premium | External device | IR / HDMI-CEC control of Smart TV YouTube app |
-| Apple TV+ | External device | IR / HDMI-CEC control of Apple TV box |
+| Netflix | External device | IR scene control via PC-AV-IR (MVP). CEC input switching via PC-AV-BOX (long term). PropertyCore does not serve content. |
+| YouTube / YouTube Premium | External device | IR control of Smart TV YouTube app (MVP). CEC via PC-AV-BOX (long term). |
+| Apple TV+ | External device | IR control of Apple TV box (MVP). CEC via PC-AV-CEC or PC-AV-BOX (Phase 2+). |
 | Amazon Prime Video | External device | IR control of Fire TV Stick or Smart TV |
-| Disney+ | External device | IR / HDMI-CEC control of Smart TV |
-| Showmax | External device | African streaming service — IR / HDMI-CEC control |
-| DStv / MultiChoice | External device | IR control of DStv decoder — full channel navigation, guide, power |
+| Disney+ | External device | IR control of Smart TV |
+| Showmax | External device | African streaming service — IR control of Smart TV |
+| DStv / MultiChoice | External device | IR control of DStv decoder — full channel navigation, guide, power. Critical for Nigeria. |
 | GOtv | External device | IR control of GOtv decoder |
 | StarTimes | External device | IR control of StarTimes decoder |
 | Canal+ | External device | IR control of Canal+ decoder |
@@ -624,9 +634,11 @@ PropertyCore treats media sources in three tiers:
 - IPTV: Tvheadend setup (source URL, channel list import)
 
 **External Device IR/CEC Library**
-- TV brand per room (for IR code selection)
-- Decoder brand per room (DStv, GOtv, StarTimes, Canal+, StarTimes)
-- Streaming stick per room (Apple TV, Fire TV, Chromecast — for HDMI-CEC control)
+- TV brand per room (for IR code selection — MVP)
+- Decoder brand per room (DStv, GOtv, StarTimes, Canal+)
+- TV control method per room (IR only • CEC adapter • PC-AV-BOX)
+- PC-AV-BOX room assignment (long-term — enables native Jellyfin + CEC in one device)
+- Streaming stick per room (Apple TV, Fire TV — Phase 2, for HDMI-CEC via PC-AV-CEC)
 - HDMI-CEC device map (which HDMI input = which source per room)
 - IR code database update (pull latest from PropertyCore cloud library)
 
@@ -715,10 +727,10 @@ PropertyCore treats media sources in three tiers:
 
 #### 13. Entertainment
 - **Now Playing** — persistent mini-player widget showing current track/source across all screens
-- **Jellyfin** — browse Movies, TV Shows, Music; cast to room TV or room speakers
-- **Music** — Spotify (via Spotify Connect), Apple Music (via AirPlay), local Jellyfin music library
+- **Media Library** — browse Movies, TV Shows, Music; cast to room TV or room speakers (served locally from hub — no internet required)
+- **Music** — Spotify (via Spotify Connect), AirPlay (iPhone / Mac casts to room speakers), local music library
 - **Multi-room Audio** — group rooms, sync playback, per-room volume slider
-- **Source selector per room** — Spotify / Jellyfin / TV / Internet Radio / Guest AirPlay
+- **Source selector per room** — Spotify / Media Library / TV / Internet Radio / Guest AirPlay
 - **TV Control** — input selector, power, volume (HDMI-CEC or IR)
 - **IPTV / DStv** — channel guide and channel switching for IPTV or IR-controlled decoder
 
@@ -805,7 +817,7 @@ PropertyCore treats media sources in three tiers:
 - Now Playing display (album art, track name, artist, source)
 - Playback controls: play / pause / skip / previous
 - Volume slider for room audio zone
-- Source shortcuts: Spotify / Jellyfin / TV / Radio
+- Source shortcuts: Spotify / Media Library / TV / Radio
 - Cast to room speakers or TV toggle
 
 #### 10. Emergency
@@ -867,14 +879,14 @@ Constraints: 320×480px display, touch only, no physical keyboard. LVGL widgets.
 - Volume up / down / mute
 - Input select (HDMI 1 / 2 / 3 / AV)
 - Power on / off
-- Source shortcut buttons: DStv / Netflix (switch TV input) / Jellyfin
+- Source shortcut buttons: DStv / Netflix (switch TV input) / Media Library
 - IR blasted from remote hardware — same codes as PC-AV-IR
 
 **Audio section within TV/AV screen:**
-- Now Playing info (pulls from hub — shows if Spotify/Jellyfin active)
+- Now Playing info (pulls from hub — shows active source if Spotify or Media Library is playing)
 - Room speaker volume slider (controls amp zone — separate from TV IR volume)
 - Audio source toggle: TV audio out / room speakers / both
-- Play / pause / skip for hub-native sources (Spotify Connect, Jellyfin)
+- Play / pause / skip for hub-native sources (Spotify Connect, Media Library)
 
 #### 7. Curtains
 - Per-motor: Open / Stop / Close (large buttons)
@@ -916,7 +928,7 @@ The following subset is sufficient for a first pilot installation:
 | Priority | Screens |
 |---|---|
 | Must have | Login, Home Dashboard, Room Control, Scenes, Climate, Lighting, Cameras, Access |
-| Should have | Energy, Notifications, Hotel Services, Entertainment (Jellyfin + Spotify Connect) |
+| Should have | Energy, Notifications, Hotel Services, Entertainment (Media Library + Spotify Connect) |
 | Phase 2 | Water, Generator, Settings (integrations), Multi-room Audio |
 
 ### Wall Panel MVP (Phase 1)
@@ -947,5 +959,5 @@ The following subset is sufficient for a first pilot installation:
 
 ---
 
-*UI Scope v0.3 — April 2026. Concept stage.*  
+*UI Scope v0.4 — April 2026. Concept stage.*  
 *All screens represent planned functionality. None are built yet.*

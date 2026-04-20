@@ -1,6 +1,6 @@
 # PropertyCore — Product Library
 
-> Version 0.2 — April 2026  
+> Version 0.3 — April 2026  
 > Status: Concept / Pre-build  
 > Reference: HDL Buspro, Control4, Loxone hardware ecosystems
 
@@ -63,7 +63,11 @@ The brain of every PropertyCore installation. Runs the platform software. One Hu
 - OTA update support
 - WireGuard relay tunnel client (remote access)
 - NAS / external storage integration (SMB / NFS)
-- Jellyfin media server (built-in)
+- Jellyfin media server (built-in — local media library, no subscription)
+- Snapcast multi-room audio server (built-in)
+- Spotify Connect endpoint — librespot (built-in)
+- AirPlay 2 receiver — shairport-sync (built-in)
+- IPTV server — Tvheadend (built-in)
 
 ---
 
@@ -349,9 +353,11 @@ Handheld premium remotes. The flagship hardware product.
 
 | SKU | Name | What It Does |
 |---|---|---|
-| PC-AV-IR | IR Blaster Module | Multi-zone IR transmitter — controls TV, decoder, AV receiver, projector |
+| PC-AV-IR | IR Blaster Module | Multi-zone IR transmitter — controls TV, decoder, AV receiver, projector via infrared |
 | PC-AV-IRL | IR Learner | Learns IR codes from any existing remote |
 | PC-AV-HDMI | HDMI Matrix Interface | Integrates HDMI matrix switches for AV distribution |
+| PC-AV-CEC | HDMI-CEC Adapter | USB-CEC dongle plugged into TV HDMI port — enables two-way TV control over HDMI (power, input, volume) without IR line-of-sight. Phase 2 product. |
+| PC-AV-BOX | PropertyCore Media Box | Per-room ARM media player. HDMI output to TV, HDMI-CEC native, runs Jellyfin client + Spotify Connect receiver + PropertyCore kiosk UI. Controlled by hub over network. Replaces Chromecast/Fire TV Stick with a fully integrated PropertyCore-branded device. Long-term product. |
 
 ---
 
@@ -402,9 +408,9 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 | Snapcast | Hub-native | Synchronised multi-room audio — lobby / corridors / pool all in sync |
 | Internet Radio (stream URLs) | Hub-native | Background music for lobbies — no subscription |
 | IPTV (Tvheadend) | Hub-native | Cable / satellite IPTV channels restreamed to any room or device |
-| Netflix / Apple TV+ / Prime Video | External device | PropertyCore controls TV input / power via IR or HDMI-CEC — does not serve content |
-| DStv / GOtv / StarTimes / Canal+ | External device | IR control of decoder — channel navigation, power, guide |
-| Showmax | External device | African streaming service — IR / HDMI-CEC control of Smart TV |
+| Netflix / Apple TV+ / Prime Video | External device | IR control via PC-AV-IR (MVP). HDMI-CEC via PC-AV-CEC or PC-AV-BOX (Phase 2+). PropertyCore does not serve the content. |
+| DStv / GOtv / StarTimes / Canal+ | External device | IR control of decoder — channel navigation, power, guide. Critical for Nigeria. |
+| Showmax | External device | African streaming service — IR control of Smart TV (MVP). CEC via PC-AV-BOX (Phase 2+). |
 
 ---
 
@@ -429,10 +435,10 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 | Access Control | 5 |
 | Intercom / Doorbell | 3 |
 | Security / Alarm | 4 |
-| AV / IR Control | 3 |
+| AV / IR Control | 5 |
 | Network / Gateways | 5 |
 | Audio / Media Distribution | 5 |
-| **Total** | **83 SKUs** |
+| **Total** | **85 SKUs** |
 
 ---
 
@@ -455,8 +461,10 @@ Multi-room audio hardware. PropertyCore Hub handles all media sources in softwar
 | Energy meters | Standard DIN rail RS485 Modbus meters (DTSU666 / compatible) |
 | Audio amplifiers | OEM class-D multi-zone amplifier boards — rebrand and integrate via Snapcast |
 | In-ceiling speakers | OEM passive in-ceiling speakers — rebrand only |
+| PC-AV-CEC | USB-CEC adapter (e.g. Pulse-Eight) — branded and bundled |
+| PC-AV-BOX | Custom ARM board (e.g. RK3326 or similar) + PropertyCore firmware + branded enclosure |
 
 ---
 
-*Product Library v0.2 — April 2026. Concept stage.*  
+*Product Library v0.3 — April 2026. Concept stage.*  
 *All SKUs represent planned products. None are in production.*
