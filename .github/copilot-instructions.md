@@ -248,6 +248,7 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
 - [x] React config dashboard v0.1 — `dashboard/` (Vite + React + TypeScript + Tailwind)
 - [x] Yocto recipe — nginx + `propertycore-dashboard` recipe serves dashboard at `/admin`
+- [x] QEMU verified: nginx active, `/admin/` 200 OK, `/status` + `/health` proxied, engine MQTT connected (commit `89a6411`)
 - [ ] Flutter mobile app (owner/guest control)
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
@@ -298,6 +299,8 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - **Atomic JSON writes** — `store.go` writes to a temp file then renames. Never write JSON directly to the target file.
 - **QEMU restart race** — `systemctl restart && wget` will fail (connection refused). Always send restart and the subsequent request as separate SSH commands.
 - **MQTT topic pattern** — devices publish to `propertycore/devices/{id}/state`. The engine subscribes to `propertycore/devices/+/state`. The engine publishes commands to `propertycore/devices/{id}/cmd`.
+- **nginx PID path** — the upstream nginx systemd unit uses `PIDFile=/run/nginx/nginx.pid`. Our `nginx.conf` must use `pid /run/nginx/nginx.pid;` (not `/run/nginx.pid`). Add `RuntimeDirectory=nginx` via a systemd drop-in at `nginx.service.d/override.conf` so `/run/nginx/` exists before nginx starts. Declare `FILES:${PN} += "${systemd_system_unitdir}/nginx.service.d"` to avoid QA packaging errors.
+- **QEMU background launch** — always use `runqemu qemuarm64 nographic slirp < /dev/null > /tmp/qemu.log 2>&1 &`. Without `< /dev/null`, the process gets `SIGTTIN` (stopped state `Tl`) when backgrounded because `-serial mon:stdio` tries to read stdin.
 
 ---
 
