@@ -17,6 +17,7 @@ type statusResponse struct {
 	MQTTBroker  string `json:"mqtt_broker"`
 	MQTTAlive   bool   `json:"mqtt_connected"`
 	DeviceCount int    `json:"device_count"`
+	WSClients   int    `json:"ws_clients"`
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +25,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, state *StateManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -34,6 +35,7 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager) http.HandlerFunc {
 			MQTTBroker:  mqtt.addr,
 			MQTTAlive:   mqtt.IsConnected(),
 			DeviceCount: state.Count(),
+			WSClients:   ws.ClientCount(),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {

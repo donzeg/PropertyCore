@@ -20,8 +20,11 @@ type DeviceState struct {
 
 // StateManager maintains an in-memory map of all known device states.
 type StateManager struct {
-	mu      sync.RWMutex
-	devices map[string]*DeviceState
+	mu       sync.RWMutex
+	devices  map[string]*DeviceState
+	// OnUpdate is called in a new goroutine whenever a device state changes.
+	// Set this before the first call to HandleMessage.
+	OnUpdate func(dev *DeviceState)
 }
 
 // NewStateManager creates an empty StateManager.
@@ -50,7 +53,6 @@ func (sm *StateManager) HandleMessage(topic string, payload []byte) {
 	}
 
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
 
 	dev, ok := sm.devices[id]
 	if !ok {
@@ -66,6 +68,18 @@ func (sm *StateManager) HandleMessage(topic string, payload []byte) {
 	}
 	dev.State = raw
 	dev.LastSeen = time.Now().UTC()
+
+	// Snapshot for the callback (taken under lock before releasing)
+	var notify *DeviceState
+	if sm.OnUpdate != nil {
+		cp := *dev
+		notify = &cp
+	}
+	sm.mu.Unlock()
+
+	if notify != nil {
+		go sm.OnUpdate(notify)
+	}
 }
 
 // GetAll returns a snapshot of all device states.

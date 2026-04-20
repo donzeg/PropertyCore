@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.2.0
-// Provides real MQTT client, device state manager, and HTTP API.
-// Architecture: mqtt.go (MQTT client) + state.go (state manager) + api.go (HTTP handlers)
+// PropertyCore Automation Engine — v0.3.0
+// Adds WebSocket server for real-time device state push to connected UIs.
+// Architecture: mqtt.go + state.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.2.0"
+	version     = "0.3.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -34,6 +34,12 @@ func main() {
 	// Device state manager
 	state := NewStateManager()
 
+	// WebSocket hub — broadcasts device_state events to connected UIs
+	wsHub := NewWSHub()
+	state.OnUpdate = func(dev *DeviceState) {
+		wsHub.Broadcast("device_state", dev)
+	}
+
 	// MQTT client — connects to Mosquitto, subscribes to device state topics
 	mqttClient := NewMQTTClient(mqttAddr, "propertycore-engine", func(topic string, payload []byte) {
 		log.Printf("MQTT ← %s: %s", topic, payload)
@@ -49,9 +55,10 @@ func main() {
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, wsHub))
 	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
+	mux.HandleFunc("/ws", wsHub.ServeWS(state))
 
 	srv := &http.Server{
 		Addr:         ":" + httpPort,
