@@ -194,9 +194,10 @@ Next steps for the engine:
 
 ## Key Reference Files
 
-- `CONCEPT.md` — Full platform concept: architecture, software stack, relay server, inverter integration, 12 feature modules, 4 deployment profiles
-- `PRODUCT-LIBRARY.md` — Full hardware catalog: 78 SKUs across 19 categories with sourcing strategy
-- `inverter/deye 16kw.yaml` — DEYE inverter ESPHome YAML — source of truth for Modbus register map
+- `Docs/CONCEPT.md` — Full platform concept: architecture, software stack, relay server, inverter integration, 12 feature modules, 4 deployment profiles
+- `Docs/PRODUCT-LIBRARY.md` — Full hardware catalog: 78 SKUs across 19 categories with sourcing strategy
+- `Docs/UI-SCOPE.md` — All 4 UI surfaces fully scoped: Web Config Dashboard (35 sections), Mobile App, Wall Panel Kiosk, Smart Remote (v0.4)
+- `Docs/inverter/deye 16kw.yaml` — DEYE inverter ESPHome YAML — source of truth for Modbus register map
 
 ---
 
