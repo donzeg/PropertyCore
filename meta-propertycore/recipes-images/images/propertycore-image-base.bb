@@ -24,6 +24,9 @@ IMAGE_INSTALL = " \
     mosquitto \
     mosquitto-clients \
     \
+    nginx \
+    propertycore-dashboard \
+    \
     propertycore-engine \
     \
     i2c-tools \

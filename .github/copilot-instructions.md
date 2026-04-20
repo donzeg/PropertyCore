@@ -172,6 +172,7 @@ The OS image must:
 ### Build configs
 - **`build-qemu/`** — `MACHINE=qemuarm64`, `DISTRO=propertycore`, no meta-raspberrypi. Primary dev target.
 - **`build/`** — `MACHINE=raspberrypi5`, `DISTRO=propertycore`, includes meta-raspberrypi. For physical hardware.
+- **`meta-webserver` must be in BBLAYERS** — nginx lives in `meta-openembedded/meta-webserver`. Add to both `build-qemu/conf/bblayers.conf` and `build/conf/bblayers.conf` after `meta-networking`.
 
 ### Running the QEMU image
 ```bash
@@ -246,7 +247,7 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 ### Phase 3 — UIs, Firmware & OS Hardening (current focus)
 - [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
 - [x] React config dashboard v0.1 — `dashboard/` (Vite + React + TypeScript + Tailwind)
-- [ ] Yocto recipe — serve dashboard from hub (nginx or Go engine static files)
+- [x] Yocto recipe — nginx + `propertycore-dashboard` recipe serves dashboard at `/admin`
 - [ ] Flutter mobile app (owner/guest control)
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
