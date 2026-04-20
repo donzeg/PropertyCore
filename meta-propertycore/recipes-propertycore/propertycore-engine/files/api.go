@@ -18,6 +18,7 @@ type statusResponse struct {
 	MQTTAlive   bool   `json:"mqtt_connected"`
 	DeviceCount int    `json:"device_count"`
 	SceneCount  int    `json:"scene_count"`
+	RuleCount   int    `json:"rule_count"`
 	WSClients   int    `json:"ws_clients"`
 }
 
@@ -26,7 +27,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -37,6 +38,7 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManag
 			MQTTAlive:   mqtt.IsConnected(),
 			DeviceCount: state.Count(),
 			SceneCount:  scenes.Count(),
+			RuleCount:   rules.Count(),
 			WSClients:   ws.ClientCount(),
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -175,6 +177,116 @@ func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.Handl
 			if !sm.Delete(id) {
 				w.WriteHeader(http.StatusNotFound)
 				fmt.Fprintf(w, `{"error":"scene not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeRulesHandler handles all rule CRUD and enable/disable endpoints:
+//
+//	GET    /api/v1/rules              → list all rules
+//	POST   /api/v1/rules              → create rule
+//	GET    /api/v1/rules/{id}         → get rule
+//	DELETE /api/v1/rules/{id}         → delete rule
+//	POST   /api/v1/rules/{id}/enable  → enable rule
+//	POST   /api/v1/rules/{id}/disable → disable rule
+func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/rules")
+		suffix = strings.Trim(suffix, "/")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// POST /api/v1/rules/{id}/enable  or  /disable
+		if strings.HasSuffix(suffix, "/enable") || strings.HasSuffix(suffix, "/disable") {
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			enable := strings.HasSuffix(suffix, "/enable")
+			id := strings.TrimSuffix(suffix, "/enable")
+			id = strings.TrimSuffix(id, "/disable")
+			if !re.SetEnabled(id, enable) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
+				return
+			}
+			rule, _ := re.Get(id)
+			if err := json.NewEncoder(w).Encode(rule); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Collection: GET or POST /api/v1/rules
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := re.GetAll()
+				if all == nil {
+					all = []*Rule{}
+				}
+				if err := json.NewEncoder(w).Encode(all); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var rule Rule
+				if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if rule.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"name is required"}`)
+					return
+				}
+				if rule.Condition.DeviceID == "" || rule.Condition.Field == "" || rule.Condition.Operator == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"condition.device_id, condition.field, and condition.operator are required"}`)
+					return
+				}
+				if rule.Action.Type != "scene" && rule.Action.Type != "mqtt" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"action.type must be \"scene\" or \"mqtt\""}`)
+					return
+				}
+				rule.Enabled = true // new rules are enabled by default
+				if err := re.Add(&rule); err != nil {
+					http.Error(w, `{"error":"could not create rule"}`, http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(&rule); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Single rule: GET or DELETE /api/v1/rules/{id}
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			rule, ok := re.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(rule); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !re.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

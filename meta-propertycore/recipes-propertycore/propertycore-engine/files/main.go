@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.4.0
-// Adds scene engine: create, list, delete, and execute scenes via REST API.
-// Architecture: mqtt.go + state.go + scene.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.5.0
+// Adds rules engine: create if/then rules that fire when device state changes.
+// Architecture: mqtt.go + state.go + scene.go + rule.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.4.0"
+	version     = "0.5.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -37,10 +37,14 @@ func main() {
 	// Scene manager
 	scenes := NewSceneManager()
 
-	// WebSocket hub — broadcasts device_state and scene_executed events to UIs
+	// Rules engine — evaluates rules on every device state change
+	rulesEngine := NewRulesEngine(scenes, nil) // mqtt injected after client is created
+
+	// WebSocket hub — broadcasts device_state, scene_executed, and rule_fired events
 	wsHub := NewWSHub()
 	state.OnUpdate = func(dev *DeviceState) {
 		wsHub.Broadcast("device_state", dev)
+		rulesEngine.Evaluate(dev)
 	}
 
 	// MQTT client — connects to Mosquitto, subscribes to device state topics
@@ -52,17 +56,22 @@ func main() {
 	mqttClient.Start()
 	defer mqttClient.Stop()
 
+	// Inject the live MQTT client into the rules engine now that it exists
+	rulesEngine.mqtt = mqttClient
+
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)
 
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, wsHub))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, wsHub))
 	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/scenes/", makeScenesHandler(scenes, mqttClient, wsHub))
+	mux.HandleFunc("/api/v1/rules", makeRulesHandler(rulesEngine))
+	mux.HandleFunc("/api/v1/rules/", makeRulesHandler(rulesEngine))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))
 
 	srv := &http.Server{
