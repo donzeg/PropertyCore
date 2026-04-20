@@ -95,3 +95,37 @@ func (s *Store) SaveRules(rules []*Rule) {
 		log.Printf("store: save rules error: %v", err)
 	}
 }
+
+// LoadRooms returns all persisted rooms, or nil if none stored yet.
+func (s *Store) LoadRooms() []*Room {
+	var rooms []*Room
+	if err := s.loadJSON("rooms.json", &rooms); err != nil {
+		log.Printf("store: load rooms error: %v", err)
+		return nil
+	}
+	return rooms
+}
+
+// SaveRooms persists the full room list atomically.
+func (s *Store) SaveRooms(rooms []*Room) {
+	if err := s.saveJSON("rooms.json", rooms); err != nil {
+		log.Printf("store: save rooms error: %v", err)
+	}
+}
+
+// LoadUsers returns all persisted users, or nil if none stored yet.
+func (s *Store) LoadUsers() []*User {
+	var users []*User
+	if err := s.loadJSON("users.json", &users); err != nil {
+		log.Printf("store: load users error: %v", err)
+		return nil
+	}
+	return users
+}
+
+// SaveUsers persists the full user list atomically.
+func (s *Store) SaveUsers(users []*User) {
+	if err := s.saveJSON("users.json", users); err != nil {
+		log.Printf("store: save users error: %v", err)
+	}
+}

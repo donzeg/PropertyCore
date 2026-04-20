@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.6.0
-// Adds JSON persistence: scenes and rules survive reboots via /var/lib/propertycore/.
-// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.7.0
+// Adds Rooms and Users CRUD REST API with JSON persistence.
+// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + room.go + user.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.6.0"
+	version     = "0.7.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -80,19 +80,41 @@ func main() {
 		log.Printf("Loaded %d rule(s) from store", len(stored))
 	}
 
+	// Room manager
+	rooms := NewRoomManager(store)
+	if stored := store.LoadRooms(); len(stored) > 0 {
+		for _, r := range stored {
+			rooms.Add(r)
+		}
+		log.Printf("Loaded %d room(s) from store", len(stored))
+	}
+
+	// User manager
+	users := NewUserManager(store)
+	if stored := store.LoadUsers(); len(stored) > 0 {
+		for _, u := range stored {
+			users.Add(u)
+		}
+		log.Printf("Loaded %d user(s) from store", len(stored))
+	}
+
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)
 
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, wsHub))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, rooms, users, wsHub))
 	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
 	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/scenes/", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/rules", makeRulesHandler(rulesEngine))
 	mux.HandleFunc("/api/v1/rules/", makeRulesHandler(rulesEngine))
+	mux.HandleFunc("/api/v1/rooms", makeRoomsHandler(rooms))
+	mux.HandleFunc("/api/v1/rooms/", makeRoomsHandler(rooms))
+	mux.HandleFunc("/api/v1/users", makeUsersHandler(users))
+	mux.HandleFunc("/api/v1/users/", makeUsersHandler(users))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))
 
 	srv := &http.Server{

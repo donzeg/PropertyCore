@@ -19,6 +19,8 @@ type statusResponse struct {
 	DeviceCount int    `json:"device_count"`
 	SceneCount  int    `json:"scene_count"`
 	RuleCount   int    `json:"rule_count"`
+	RoomCount   int    `json:"room_count"`
+	UserCount   int    `json:"user_count"`
 	WSClients   int    `json:"ws_clients"`
 }
 
@@ -27,7 +29,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -39,6 +41,8 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManag
 			DeviceCount: state.Count(),
 			SceneCount:  scenes.Count(),
 			RuleCount:   rules.Count(),
+			RoomCount:   rooms.Count(),
+			UserCount:   users.Count(),
 			WSClients:   ws.ClientCount(),
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -287,6 +291,187 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 			if !re.Delete(id) {
 				w.WriteHeader(http.StatusNotFound)
 				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeRoomsHandler handles all room CRUD endpoints:
+//
+//	GET    /api/v1/rooms        → list all rooms
+//	POST   /api/v1/rooms        → create a room
+//	GET    /api/v1/rooms/{id}   → get a room
+//	PATCH  /api/v1/rooms/{id}   → update room (name, floor)
+//	DELETE /api/v1/rooms/{id}   → delete a room
+func makeRoomsHandler(rm *RoomManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/rooms")
+		suffix = strings.Trim(suffix, "/")
+		w.Header().Set("Content-Type", "application/json")
+
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := rm.GetAll()
+				if all == nil {
+					all = []*Room{}
+				}
+				if err := json.NewEncoder(w).Encode(all); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var room Room
+				if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if room.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"name is required"}`)
+					return
+				}
+				if err := rm.Add(&room); err != nil {
+					http.Error(w, `{"error":"could not create room"}`, http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(&room); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			room, ok := rm.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(room); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var patch Room
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			if !rm.Update(id, &patch) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				return
+			}
+			room, _ := rm.Get(id)
+			if err := json.NewEncoder(w).Encode(room); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !rm.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeUsersHandler handles all user CRUD endpoints:
+//
+//	GET    /api/v1/users        → list all users (PIN omitted)
+//	POST   /api/v1/users        → create a user
+//	GET    /api/v1/users/{id}   → get a user (PIN omitted)
+//	PATCH  /api/v1/users/{id}   → update user (name, role, pin)
+//	DELETE /api/v1/users/{id}   → delete a user
+func makeUsersHandler(um *UserManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/users")
+		suffix = strings.Trim(suffix, "/")
+		w.Header().Set("Content-Type", "application/json")
+
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := um.GetAll()
+				pub := make([]*userPublic, 0, len(all))
+				for _, u := range all {
+					pub = append(pub, toPublic(u))
+				}
+				if err := json.NewEncoder(w).Encode(pub); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var user User
+				if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if user.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"name is required"}`)
+					return
+				}
+				if err := um.Add(&user); err != nil {
+					http.Error(w, `{"error":"could not create user"}`, http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(toPublic(&user)); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			user, ok := um.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"user not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(toPublic(user)); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var patch User
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			if !um.Update(id, &patch) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"user not found","id":%q}`, id)
+				return
+			}
+			user, _ := um.Get(id)
+			if err := json.NewEncoder(w).Encode(toPublic(user)); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !um.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"user not found","id":%q}`, id)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
