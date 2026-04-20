@@ -22,6 +22,7 @@ IMAGE_INSTALL = " \
     openssh-sftp-server \
     \
     mosquitto \
+    mosquitto-clients \
     \
     propertycore-engine \
     \

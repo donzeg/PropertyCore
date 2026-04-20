@@ -1,16 +1,12 @@
-// PropertyCore Automation Engine — v0.1 stub
-// Provides HTTP health/status API and validates MQTT broker connectivity.
-// Real automation logic (scene engine, device handler, MQTT events) will be
-// layered on top of this foundation in subsequent releases.
-
+// PropertyCore Automation Engine — v0.2.0
+// Provides real MQTT client, device state manager, and HTTP API.
+// Architecture: mqtt.go (MQTT client) + state.go (state manager) + api.go (HTTP handlers)
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,56 +15,12 @@ import (
 )
 
 const (
-	version     = "0.1.0"
+	version     = "0.2.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
 
 var startTime = time.Now()
-
-type statusResponse struct {
-	Version   string `json:"version"`
-	Hostname  string `json:"hostname"`
-	Uptime    string `json:"uptime"`
-	MQTTAddr  string `json:"mqtt_broker"`
-	MQTTAlive bool   `json:"mqtt_alive"`
-}
-
-// mqttPing does a TCP dial to check if the MQTT broker is reachable.
-func mqttPing(addr string) bool {
-	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "OK")
-}
-
-func statusHandler(w http.ResponseWriter, r *http.Request) {
-	hostname, _ := os.Hostname()
-	mqttAddr := os.Getenv("MQTT_BROKER")
-	if mqttAddr == "" {
-		mqttAddr = mqttDefault
-	}
-
-	resp := statusResponse{
-		Version:   version,
-		Hostname:  hostname,
-		Uptime:    time.Since(startTime).Round(time.Second).String(),
-		MQTTAddr:  mqttAddr,
-		MQTTAlive: mqttPing(mqttAddr),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "encoding error", http.StatusInternalServerError)
-	}
-}
 
 func main() {
 	hostname, _ := os.Hostname()
@@ -78,11 +30,28 @@ func main() {
 	if mqttAddr == "" {
 		mqttAddr = mqttDefault
 	}
-	log.Printf("MQTT broker: %s", mqttAddr)
 
+	// Device state manager
+	state := NewStateManager()
+
+	// MQTT client — connects to Mosquitto, subscribes to device state topics
+	mqttClient := NewMQTTClient(mqttAddr, "propertycore-engine", func(topic string, payload []byte) {
+		log.Printf("MQTT ← %s: %s", topic, payload)
+		state.HandleMessage(topic, payload)
+	})
+	mqttClient.Subscribe("propertycore/devices/+/state")
+	mqttClient.Start()
+	defer mqttClient.Stop()
+
+	// Announce hub online once MQTT connects
+	go announceOnline(mqttClient)
+
+	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", statusHandler)
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state))
+	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
+	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
 
 	srv := &http.Server{
 		Addr:         ":" + httpPort,
@@ -102,12 +71,26 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
-	log.Printf("Received signal %s — shutting down...", sig)
+	log.Printf("Signal %s received — shutting down", sig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Shutdown error: %v", err)
+		log.Printf("HTTP shutdown error: %v", err)
 	}
 	log.Println("PropertyCore Engine stopped")
+}
+
+// announceOnline waits for MQTT to connect, then publishes the hub's online status.
+func announceOnline(c *MQTTClient) {
+	for i := 0; i < 15; i++ {
+		if c.IsConnected() {
+			payload := fmt.Sprintf(`{"status":"online","version":"%s"}`, version)
+			if err := c.Publish("propertycore/hub/online", []byte(payload)); err == nil {
+				log.Printf("MQTT → propertycore/hub/online: online v%s", version)
+			}
+			return
+		}
+		time.Sleep(time.Second)
+	}
 }
