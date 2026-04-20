@@ -1,6 +1,6 @@
 # PropertyCore — Product Library
 
-> Version 0.1 — April 2026  
+> Version 0.2 — April 2026  
 > Status: Concept / Pre-build  
 > Reference: HDL Buspro, Control4, Loxone hardware ecosystems
 
@@ -32,6 +32,7 @@
 | ENV | Environmental Sensor |
 | INT | Intercom / Doorbell |
 | DOK | Charging Dock |
+| AUD | Audio / Media Distribution |
 
 ---
 
@@ -368,6 +369,45 @@ Bridges between PropertyCore and third-party protocols.
 
 ---
 
+## Category 20 — Audio / Media Distribution
+
+Multi-room audio hardware. PropertyCore Hub handles all media sources in software (Jellyfin, Spotify Connect, AirPlay 2, Internet Radio, IPTV). This category covers the physical amplification and speaker hardware that delivers audio to rooms.
+
+| SKU | Name | Zones | Output Power | Notes |
+|---|---|---|---|---|
+| PC-AUD-AMP4 | 4-Zone Audio Amplifier | 4 | 2 × 30W per zone | Class-D, low heat, DIN rail mount, line-in + network audio |
+| PC-AUD-AMP8 | 8-Zone Audio Amplifier | 8 | 2 × 30W per zone | For large homes, hotels, commercial |
+| PC-AUD-SPK-IC6 | In-Ceiling Speaker Pair 6.5" | — | Passive | 6.5" 2-way in-ceiling, 8Ω, 60W RMS, sold in pairs |
+| PC-AUD-SPK-IC4 | In-Ceiling Speaker Pair 4" | — | Passive | 4" compact in-ceiling, 8Ω, 30W RMS, for small rooms / bathrooms |
+| PC-AUD-LINE | Line Input Module | 1 | — | Accepts 3.5mm / RCA line-in from TV or external source, feeds into amp zone |
+
+**Features (amplifier modules):**
+- Controlled by PropertyCore Hub via network (Snapcast audio stream)
+- Per-zone volume control from mobile app, wall panel, and smart remote
+- Zone grouping for synchronised multi-room playback
+- Input: network audio (Snapcast), line-in (PC-AUD-LINE), or USB audio
+- Output: passive speaker terminals (left + right per zone)
+- DIN rail mountable alongside relay and energy modules in electrical panel
+- OTA firmware updates
+- Sourcing: OEM class-D multi-zone amplifier boards, rebrand and firmware integration
+
+**Media Source Architecture (software — runs on hub):**
+
+| Source | Type | Who Uses It |
+|---|---|---|
+| Jellyfin | Hub-native | Local movie / TV / music library from NAS — no subscription |
+| Spotify Connect (librespot) | Hub-native | Guest opens Spotify app, sees room as a speaker — no PropertyCore app needed |
+| Apple AirPlay 2 (shairport-sync) | Hub-native | Guest AirPlays from iPhone / Mac directly to room speakers |
+| Google Cast | Hub-native | Guest casts from Android / Chrome to room |
+| Snapcast | Hub-native | Synchronised multi-room audio — lobby / corridors / pool all in sync |
+| Internet Radio (stream URLs) | Hub-native | Background music for lobbies — no subscription |
+| IPTV (Tvheadend) | Hub-native | Cable / satellite IPTV channels restreamed to any room or device |
+| Netflix / Apple TV+ / Prime Video | External device | PropertyCore controls TV input / power via IR or HDMI-CEC — does not serve content |
+| DStv / GOtv / StarTimes / Canal+ | External device | IR control of decoder — channel navigation, power, guide |
+| Showmax | External device | African streaming service — IR / HDMI-CEC control of Smart TV |
+
+---
+
 ## Product Library Summary
 
 | Category | SKUs Planned |
@@ -391,7 +431,8 @@ Bridges between PropertyCore and third-party protocols.
 | Security / Alarm | 4 |
 | AV / IR Control | 3 |
 | Network / Gateways | 5 |
-| **Total** | **78 SKUs** |
+| Audio / Media Distribution | 5 |
+| **Total** | **83 SKUs** |
 
 ---
 
@@ -412,8 +453,10 @@ Bridges between PropertyCore and third-party protocols.
 | Hub HC-Pro | RK3588 board + custom enclosure |
 | Access control | OEM electric lock / RFID boards — integrate via Wiegand or RS485 |
 | Energy meters | Standard DIN rail RS485 Modbus meters (DTSU666 / compatible) |
+| Audio amplifiers | OEM class-D multi-zone amplifier boards — rebrand and integrate via Snapcast |
+| In-ceiling speakers | OEM passive in-ceiling speakers — rebrand only |
 
 ---
 
-*Product Library v0.1 — April 2026. Concept stage.*  
+*Product Library v0.2 — April 2026. Concept stage.*  
 *All SKUs represent planned products. None are in production.*
