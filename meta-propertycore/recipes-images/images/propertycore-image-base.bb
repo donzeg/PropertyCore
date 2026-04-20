@@ -23,6 +23,8 @@ IMAGE_INSTALL = " \
     \
     mosquitto \
     \
+    propertycore-engine \
+    \
     i2c-tools \
     \
     util-linux \
