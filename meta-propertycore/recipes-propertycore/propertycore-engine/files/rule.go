@@ -53,14 +53,16 @@ type RulesEngine struct {
 	rules  map[string]*Rule
 	scenes *SceneManager
 	mqtt   *MQTTClient
+	store  *Store
 }
 
 // NewRulesEngine creates an empty RulesEngine.
-func NewRulesEngine(scenes *SceneManager, mqtt *MQTTClient) *RulesEngine {
+func NewRulesEngine(scenes *SceneManager, mqtt *MQTTClient, store *Store) *RulesEngine {
 	return &RulesEngine{
 		rules:  make(map[string]*Rule),
 		scenes: scenes,
 		mqtt:   mqtt,
+		store:  store,
 	}
 }
 
@@ -79,6 +81,7 @@ func (re *RulesEngine) Add(r *Rule) error {
 	re.mu.Lock()
 	re.rules[r.ID] = r
 	re.mu.Unlock()
+	re.persist()
 	return nil
 }
 
@@ -107,10 +110,13 @@ func (re *RulesEngine) GetAll() []*Rule {
 // Delete removes a rule by ID. Returns false if not found.
 func (re *RulesEngine) Delete(id string) bool {
 	re.mu.Lock()
-	defer re.mu.Unlock()
 	_, ok := re.rules[id]
 	if ok {
 		delete(re.rules, id)
+	}
+	re.mu.Unlock()
+	if ok {
+		re.persist()
 	}
 	return ok
 }
@@ -118,10 +124,13 @@ func (re *RulesEngine) Delete(id string) bool {
 // SetEnabled enables or disables a rule. Returns false if not found.
 func (re *RulesEngine) SetEnabled(id string, enabled bool) bool {
 	re.mu.Lock()
-	defer re.mu.Unlock()
 	r, ok := re.rules[id]
 	if ok {
 		r.Enabled = enabled
+	}
+	re.mu.Unlock()
+	if ok {
+		re.persist()
 	}
 	return ok
 }
@@ -231,4 +240,12 @@ func toFloat(v interface{}) (float64, bool) {
 		return f, err == nil
 	}
 	return 0, false
+}
+
+// persist saves all current rules to the store (called after any mutation).
+func (re *RulesEngine) persist() {
+	if re.store == nil {
+		return
+	}
+	re.store.SaveRules(re.GetAll())
 }

@@ -32,12 +32,14 @@ type Scene struct {
 type SceneManager struct {
 	mu     sync.RWMutex
 	scenes map[string]*Scene
+	store  *Store
 }
 
-// NewSceneManager creates an empty SceneManager.
-func NewSceneManager() *SceneManager {
+// NewSceneManager creates an empty SceneManager backed by the given store.
+func NewSceneManager(store *Store) *SceneManager {
 	return &SceneManager{
 		scenes: make(map[string]*Scene),
+		store:  store,
 	}
 }
 
@@ -56,6 +58,7 @@ func (sm *SceneManager) Add(s *Scene) error {
 	sm.mu.Lock()
 	sm.scenes[s.ID] = s
 	sm.mu.Unlock()
+	sm.persist()
 	return nil
 }
 
@@ -84,10 +87,13 @@ func (sm *SceneManager) GetAll() []*Scene {
 // Delete removes a scene by ID. Returns false if not found.
 func (sm *SceneManager) Delete(id string) bool {
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
 	_, ok := sm.scenes[id]
 	if ok {
 		delete(sm.scenes, id)
+	}
+	sm.mu.Unlock()
+	if ok {
+		sm.persist()
 	}
 	return ok
 }
@@ -131,4 +137,12 @@ func randomID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// persist saves all current scenes to the store (called after any mutation).
+func (sm *SceneManager) persist() {
+	if sm.store == nil {
+		return
+	}
+	sm.store.SaveScenes(sm.GetAll())
 }

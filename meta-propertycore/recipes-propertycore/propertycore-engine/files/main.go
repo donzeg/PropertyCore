@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.5.0
-// Adds rules engine: create if/then rules that fire when device state changes.
-// Architecture: mqtt.go + state.go + scene.go + rule.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.6.0
+// Adds JSON persistence: scenes and rules survive reboots via /var/lib/propertycore/.
+// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.5.0"
+	version     = "0.6.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -31,14 +31,27 @@ func main() {
 		mqttAddr = mqttDefault
 	}
 
+	// Persistence store — /var/lib/propertycore/
+	store, err := NewStore(storeDir)
+	if err != nil {
+		log.Fatalf("store init: %v", err)
+	}
+	log.Printf("Persistence store: %s", storeDir)
+
 	// Device state manager
 	state := NewStateManager()
 
 	// Scene manager
-	scenes := NewSceneManager()
+	scenes := NewSceneManager(store)
+	if stored := store.LoadScenes(); len(stored) > 0 {
+		for _, s := range stored {
+			scenes.Add(s)
+		}
+		log.Printf("Loaded %d scene(s) from store", len(stored))
+	}
 
 	// Rules engine — evaluates rules on every device state change
-	rulesEngine := NewRulesEngine(scenes, nil) // mqtt injected after client is created
+	rulesEngine := NewRulesEngine(scenes, nil, store) // mqtt injected after client is created
 
 	// WebSocket hub — broadcasts device_state, scene_executed, and rule_fired events
 	wsHub := NewWSHub()
@@ -58,6 +71,14 @@ func main() {
 
 	// Inject the live MQTT client into the rules engine now that it exists
 	rulesEngine.mqtt = mqttClient
+
+	// Load persisted rules (after MQTT client exists so scene execution works)
+	if stored := store.LoadRules(); len(stored) > 0 {
+		for _, r := range stored {
+			rulesEngine.Add(r)
+		}
+		log.Printf("Loaded %d rule(s) from store", len(stored))
+	}
 
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)

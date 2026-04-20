@@ -13,6 +13,10 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=propertycore-engine
 
+# Persistence — systemd creates /var/lib/propertycore/ before starting the service
+StateDirectory=propertycore
+StateDirectoryMode=0755
+
 # Engine configuration — override per deployment via /etc/propertycore/engine.conf
 Environment=MQTT_BROKER=localhost:1883
 
