@@ -30,7 +30,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -39,7 +39,7 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManag
 			Uptime:        time.Since(startTime).Round(time.Second).String(),
 			MQTTBroker:    mqtt.addr,
 			MQTTAlive:     mqtt.IsConnected(),
-			DeviceCount:   state.Count(),
+			DeviceCount:   registry.Count(),
 			SceneCount:    scenes.Count(),
 			RuleCount:     rules.Count(),
 			RoomCount:     rooms.Count(),
@@ -57,37 +57,124 @@ func makeStatusHandler(mqtt *MQTTClient, state *StateManager, scenes *SceneManag
 // makeDevicesHandler handles both:
 //
 //	GET /api/v1/devices      → list all devices
-//	GET /api/v1/devices/{id} → single device state
-func makeDevicesHandler(state *StateManager) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-			return
+// makeDevicesHandler handles all device CRUD endpoints plus live state merging:
+//
+//	GET    /api/v1/devices      → list all devices (registry + live state)
+//	POST   /api/v1/devices      → register a device manually
+//	GET    /api/v1/devices/{id} → get device (registry + live state)
+//	PATCH  /api/v1/devices/{id} → update device metadata (name, room_id, etc.)
+//	DELETE /api/v1/devices/{id} → unregister device
+func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.HandlerFunc {
+	// deviceResponse merges registry metadata with live state for the HTTP response.
+	type deviceResponse struct {
+		ID              string                 `json:"id"`
+		Name            string                 `json:"name"`
+		Type            string                 `json:"type"`
+		RoomID          string                 `json:"room_id,omitempty"`
+		Vendor          string                 `json:"vendor,omitempty"`
+		FirmwareVersion string                 `json:"firmware_version,omitempty"`
+		Online          bool                   `json:"online"`
+		LastSeen        time.Time              `json:"last_seen"`
+		CreatedAt       time.Time              `json:"created_at"`
+		State           map[string]interface{} `json:"state,omitempty"`
+	}
+
+	merge := func(d *DeviceInfo) *deviceResponse {
+		resp := &deviceResponse{
+			ID:              d.ID,
+			Name:            d.Name,
+			Type:            d.Type,
+			RoomID:          d.RoomID,
+			Vendor:          d.Vendor,
+			FirmwareVersion: d.FirmwareVersion,
+			Online:          d.Online,
+			LastSeen:        d.LastSeen,
+			CreatedAt:       d.CreatedAt,
 		}
+		if s, ok := state.Get(d.ID); ok {
+			resp.State = s.State
+		}
+		return resp
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(r.URL.Path, "/api/v1/devices")
 		id = strings.Trim(id, "/")
 
 		w.Header().Set("Content-Type", "application/json")
 
+		// Collection: GET or POST /api/v1/devices
 		if id == "" {
-			devices := state.GetAll()
-			if devices == nil {
-				devices = []*DeviceState{}
-			}
-			if err := json.NewEncoder(w).Encode(devices); err != nil {
-				http.Error(w, "encode error", http.StatusInternalServerError)
+			switch r.Method {
+			case http.MethodGet:
+				all := registry.GetAll()
+				out := make([]*deviceResponse, 0, len(all))
+				for _, d := range all {
+					out = append(out, merge(d))
+				}
+				if err := json.NewEncoder(w).Encode(out); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var d DeviceInfo
+				if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if d.ID == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"id is required"}`)
+					return
+				}
+				registry.Register(&d)
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(merge(&d)); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 			}
 			return
 		}
 
-		dev, ok := state.Get(id)
-		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"error":"device not found","id":%q}`, id)
-			return
-		}
-		if err := json.NewEncoder(w).Encode(dev); err != nil {
-			http.Error(w, "encode error", http.StatusInternalServerError)
+		// Single device: GET, PATCH, or DELETE /api/v1/devices/{id}
+		switch r.Method {
+		case http.MethodGet:
+			d, ok := registry.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"device not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(merge(d)); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var patch DeviceInfo
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			if !registry.Update(id, &patch) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"device not found","id":%q}`, id)
+				return
+			}
+			d, _ := registry.Get(id)
+			if err := json.NewEncoder(w).Encode(merge(d)); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !registry.Unregister(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"device not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
 	}
 }

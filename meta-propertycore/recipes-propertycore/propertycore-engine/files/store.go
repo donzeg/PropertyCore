@@ -146,3 +146,20 @@ func (s *Store) SaveSchedules(schedules []*Schedule) {
 		log.Printf("store: save schedules error: %v", err)
 	}
 }
+
+// LoadDevices returns all persisted device records, or nil if none stored yet.
+func (s *Store) LoadDevices() []*DeviceInfo {
+	var devices []*DeviceInfo
+	if err := s.loadJSON("devices.json", &devices); err != nil {
+		log.Printf("store: load devices error: %v", err)
+		return nil
+	}
+	return devices
+}
+
+// SaveDevices persists the full device registry atomically.
+func (s *Store) SaveDevices(devices []*DeviceInfo) {
+	if err := s.saveJSON("devices.json", devices); err != nil {
+		log.Printf("store: save devices error: %v", err)
+	}
+}

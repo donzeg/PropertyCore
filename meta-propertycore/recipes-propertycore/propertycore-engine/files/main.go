@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.8.0
-// Adds Scheduling Engine: time-based scene triggers with JSON persistence.
-// Architecture: mqtt.go + state.go + scene.go + rule.go + store.go + room.go + user.go + scheduler.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.9.0
+// Adds Device Registry: persistent device metadata (name, type, room assignment).
+// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + room.go + user.go + scheduler.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.8.0"
+	version     = "0.9.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -41,6 +41,13 @@ func main() {
 	// Device state manager
 	state := NewStateManager()
 
+	// Device registry — persistent metadata for all known devices
+	registry := NewDeviceRegistry(store)
+	if stored := store.LoadDevices(); len(stored) > 0 {
+		registry.Load(stored)
+		log.Printf("Loaded %d device(s) from registry", len(stored))
+	}
+
 	// Scene manager
 	scenes := NewSceneManager(store)
 	if stored := store.LoadScenes(); len(stored) > 0 {
@@ -56,6 +63,7 @@ func main() {
 	// WebSocket hub — broadcasts device_state, scene_executed, and rule_fired events
 	wsHub := NewWSHub()
 	state.OnUpdate = func(dev *DeviceState) {
+		registry.MarkSeen(dev.ID, dev.Type)
 		wsHub.Broadcast("device_state", dev)
 		rulesEngine.Evaluate(dev)
 	}
@@ -106,6 +114,7 @@ func main() {
 	}
 	scheduler.Start()
 	defer scheduler.Stop()
+	defer registry.PersistAll() // flush Online/LastSeen on clean shutdown
 
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)
@@ -113,9 +122,9 @@ func main() {
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, state, scenes, rulesEngine, rooms, users, scheduler, wsHub))
-	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(state))
-	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(state))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, registry, state, scenes, rulesEngine, rooms, users, scheduler, wsHub))
+	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(registry, state))
+	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(registry, state))
 	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/scenes/", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/rules", makeRulesHandler(rulesEngine))
