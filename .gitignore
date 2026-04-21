@@ -7,3 +7,15 @@ poky/
 meta-openembedded/
 meta-raspberrypi/
 meta-propertycore/recipes-propertycore/propertycore-engine/files/propertycore-engine
+
+# Flutter mobile app — build artifacts
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/*.iml
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
