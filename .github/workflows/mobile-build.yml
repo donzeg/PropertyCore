@@ -3,8 +3,6 @@ name: Mobile — Build APK
 on:
   push:
     branches: [main]
-    paths:
-      - 'mobile/**'
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
 jobs:
