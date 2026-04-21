@@ -4,8 +4,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -128,15 +126,6 @@ func (sm *SceneManager) Execute(id string, mqtt *MQTTClient) (*Scene, error) {
 		log.Printf("Scene %q → MQTT %s: %s", s.Name, topic, payload)
 	}
 	return s, nil
-}
-
-// randomID generates a short random hex ID (12 hex chars = 6 bytes).
-func randomID() (string, error) {
-	b := make([]byte, 6)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
 }
 
 // persist saves all current scenes to the store (called after any mutation).

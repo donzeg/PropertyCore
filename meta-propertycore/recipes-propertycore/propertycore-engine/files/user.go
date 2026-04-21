@@ -25,6 +25,10 @@ type User struct {
 	Name      string    `json:"name"`
 	Role      UserRole  `json:"role"`
 	PIN       string    `json:"pin,omitempty"` // 4-8 digit PIN, omitted when listing
+	// AreaIDs lists the areas this user may access.
+	// Empty/nil means unrestricted (owner and admin default).
+	// Guests should have an explicit list of assigned area IDs.
+	AreaIDs   []string  `json:"area_ids,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -33,11 +37,15 @@ type userPublic struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Role      UserRole  `json:"role"`
+	// AreaIDs is included in the public profile so the mobile app can filter
+	// its UI to only show areas this user is allowed to access.
+	// nil/empty means the user has access to all areas.
+	AreaIDs   []string  `json:"area_ids,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 func toPublic(u *User) *userPublic {
-	return &userPublic{ID: u.ID, Name: u.Name, Role: u.Role, CreatedAt: u.CreatedAt}
+	return &userPublic{ID: u.ID, Name: u.Name, Role: u.Role, AreaIDs: u.AreaIDs, CreatedAt: u.CreatedAt}
 }
 
 // UserManager holds all users in memory and persists mutations.
@@ -112,6 +120,9 @@ func (um *UserManager) Update(id string, patch *User) bool {
 		if patch.PIN != "" {
 			u.PIN = patch.PIN
 		}
+		if patch.AreaIDs != nil {
+			u.AreaIDs = patch.AreaIDs
+		}
 	}
 	um.mu.Unlock()
 	if ok {
@@ -139,6 +150,23 @@ func (um *UserManager) Count() int {
 	um.mu.RLock()
 	defer um.mu.RUnlock()
 	return len(um.users)
+}
+
+// FindByPIN searches all users for one whose PIN matches the given string.
+// Returns (nil, false) if no match. Owner/admin users without a PIN set
+// cannot authenticate via PIN (empty string never matches).
+func (um *UserManager) FindByPIN(pin string) (*User, bool) {
+	if pin == "" {
+		return nil, false
+	}
+	um.mu.RLock()
+	defer um.mu.RUnlock()
+	for _, u := range um.users {
+		if u.PIN == pin {
+			return u, true
+		}
+	}
+	return nil, false
 }
 
 // persist saves all current users to the store.

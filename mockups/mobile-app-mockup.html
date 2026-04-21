@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>PropertyCore — Mobile App Mockup</title>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+/* ═══════════════════════════════════════════
+   CSS CUSTOM PROPERTIES — swapped by JS
+═══════════════════════════════════════════ */
+:root {
+  /* accent palette — overridden per theme */
+  --a500: #10b981; /* emerald-500 */
+  --a400: #34d399; /* emerald-400 */
+  --a300: #6ee7b7; /* emerald-300 */
+  --a600: #059669; /* emerald-600 */
+  --a-text: #052e16;/* dark text on accent bg */
+
+  /* bg/surface — overridden per mode */
+  --bg:       #060a08;
+  --surface:  rgba(255,255,255,0.07);
+  --surface-b: rgba(255,255,255,0.04);
+  --border:   rgba(255,255,255,0.14);
+  --rim:      rgba(255,255,255,0.20);
+  --text:     #ffffff;
+  --text2:    rgba(255,255,255,0.45);
+  --text3:    rgba(255,255,255,0.28);
+  --shadow:   rgba(0,0,0,0.85);
+  --phone-bg: #070d09;
+  --phone-border: rgba(255,255,255,0.10);
+  --blob-opacity: 1;
+
+  /* active-glass — tinted with accent */
+  --glass-active-bg: rgba(16,185,129,0.15);
+  --glass-active-border: rgba(16,185,129,0.30);
+  --glass-active-shadow: rgba(16,185,129,0.15);
+
+  /* dark-glass for off/inactive */
+  --glass-dark-bg:     rgba(0,0,0,0.22);
+  --glass-dark-border: rgba(255,255,255,0.08);
+}
+
+/* ─── LIGHT MODE ─────────────────── */
+body.mode-light {
+  --bg:       #f8f8f6;
+  --surface:  rgba(255,255,255,0.72);
+  --surface-b: rgba(255,255,255,0.5);
+  --border:   rgba(0,0,0,0.10);
+  --rim:      rgba(255,255,255,0.90);
+  --text:     #111111;
+  --text2:    rgba(0,0,0,0.45);
+  --text3:    rgba(0,0,0,0.30);
+  --shadow:   rgba(0,0,0,0.18);
+  --phone-bg: #f0f0ee;
+  --phone-border: rgba(0,0,0,0.12);
+  --blob-opacity: 0;
+  --glass-dark-bg:     rgba(0,0,0,0.05);
+  --glass-dark-border: rgba(0,0,0,0.08);
+}
+
+/* ─── DARK-NO-THEME (monochrome dark) ── */
+body.mode-dark {
+  --bg:       #0d0d0d;
+  --surface:  rgba(255,255,255,0.07);
+  --surface-b: rgba(255,255,255,0.04);
+  --border:   rgba(255,255,255,0.12);
+  --rim:      rgba(255,255,255,0.18);
+  --text:     #ffffff;
+  --text2:    rgba(255,255,255,0.45);
+  --text3:    rgba(255,255,255,0.28);
+  --shadow:   rgba(0,0,0,0.85);
+  --phone-bg: #0a0a0a;
+  --phone-border: rgba(255,255,255,0.08);
+  --blob-opacity: 0;
+  --glass-active-bg: rgba(255,255,255,0.09);
+  --glass-active-border: rgba(255,255,255,0.18);
+  --glass-active-shadow: rgba(0,0,0,0.2);
+}
+
+/* ─── THEME MODE (coloured blobs) ── */
+body.mode-theme {
+  --bg:       #060a08;
+  --blob-opacity: 1;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'SF Pro Display','Segoe UI',system-ui,sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding: 40px 24px 60px;
+  transition: background 0.4s;
+}
+
+/* ════════════════════════════════════
+   FLOATING CONTROLS PANEL
+════════════════════════════════════ */
+.controls {
+  background: rgba(20,20,20,0.88);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  padding: 16px 22px;
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
+  margin-bottom: 36px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+body.mode-light .controls {
+  background: rgba(255,255,255,0.88);
+  border-color: rgba(0,0,0,0.10);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.ctrl-group { display: flex; flex-direction: column; gap: 8px; }
+.ctrl-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: rgba(255,255,255,0.3);
+}
+body.mode-light .ctrl-label { color: rgba(0,0,0,0.3); }
+.mode-btns { display: flex; gap: 6px; }
+.mode-btn {
+  padding: 7px 18px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.25s;
+}
+body.mode-light .mode-btn {
+  border-color: rgba(0,0,0,0.12); background: rgba(0,0,0,0.05);
+  color: rgba(0,0,0,0.45);
+}
+.mode-btn.active {
+  background: var(--a500); border-color: var(--a400);
+  color: var(--a-text);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.theme-swatches { display: flex; gap: 8px; }
+.swatch {
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  border: 3px solid transparent;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.5);
+}
+body.mode-light .swatch.active {
+  border-color: #333;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+}
+.swatch-em { background: radial-gradient(circle at 35% 35%, #34d399, #059669); }
+.swatch-sa { background: radial-gradient(circle at 35% 35%, #93c5fd, #1d4ed8); }
+.swatch-am { background: radial-gradient(circle at 35% 35%, #fde68a, #b45309); }
+.swatch-ro { background: radial-gradient(circle at 35% 35%, #fda4af, #be123c); }
+.swatch-vi { background: radial-gradient(circle at 35% 35%, #c4b5fd, #6d28d9); }
+
+.ctrl-divider { width: 1px; background: rgba(255,255,255,0.1); align-self: stretch; }
+body.mode-light .ctrl-divider { background: rgba(0,0,0,0.1); }
+
+.hdr {
+  font-size: 10px; font-weight: 600; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(255,255,255,0.22);
+  margin-bottom: 4px; text-align: center;
+}
+body.mode-light .hdr { color: rgba(0,0,0,0.25); }
+.tagline { font-size: 12px; color: rgba(255,255,255,0.2); margin-bottom: 28px; text-align: center; }
+body.mode-light .tagline { color: rgba(0,0,0,0.25); }
+.tagline strong { color: var(--a400); }
+
+/* ════════════════════════════════════
+   PHONE LAYOUT
+════════════════════════════════════ */
+.phones { display: flex; gap: 32px; align-items: flex-start; }
+.phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.phone-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+
+.phone {
+  width: 310px;
+  background: var(--phone-bg);
+  border-radius: 46px;
+  border: 2px solid var(--phone-border);
+  box-shadow:
+    0 0 0 7px rgba(0,0,0,0.04),
+    0 40px 80px var(--shadow),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  overflow: hidden; position: relative;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+body.mode-light .phone {
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.phone::before {
+  content: ''; position: absolute;
+  top: 14px; left: 50%; transform: translateX(-50%);
+  width: 88px; height: 28px;
+  background: #000; border-radius: 14px; z-index: 200;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.04);
+}
+body.mode-light .phone::before { background: #111; }
+
+/* ════════════════════════════════════
+   SCREEN + WALLPAPER
+════════════════════════════════════ */
+.screen {
+  position: relative; height: 670px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.wallpaper {
+  position: absolute; inset: 0; z-index: 0;
+  opacity: var(--blob-opacity); transition: opacity 0.5s;
+  pointer-events: none;
+}
+/* Blob base colours driven by CSS vars — recoloured by JS on theme change */
+.wallpaper.w1 {
+  background:
+    radial-gradient(ellipse 60% 55% at 20% 20%, var(--blob1a) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 55% at 85% 15%, var(--blob1b) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 45% at 70% 80%, var(--blob1c) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 35% at 10% 85%, var(--blob1d) 0%, transparent 55%);
+  animation: drift1 14s ease-in-out infinite alternate;
+}
+.wallpaper.w2 {
+  background:
+    radial-gradient(ellipse 50% 50% at 80% 18%, var(--blob1a) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 10% 65%, var(--blob1b) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 50% 92%, var(--blob1c) 0%, transparent 55%);
+  animation: drift2 16s ease-in-out infinite alternate;
+}
+.wallpaper.w3 {
+  background:
+    radial-gradient(ellipse 65% 55% at 50% 12%, var(--blob1a) 0%, transparent 65%),
+    radial-gradient(ellipse 38% 42% at 8%  82%, var(--blob1b) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 48% at 92% 72%, var(--blob1c) 0%, transparent 60%);
+  animation: drift3 12s ease-in-out infinite alternate;
+}
+@keyframes drift1 {
+  from { filter: blur(42px); transform: scale(1.0) translate(0,0); }
+  to   { filter: blur(46px); transform: scale(1.03) translate(7px,-5px); }
+}
+@keyframes drift2 {
+  from { filter: blur(40px); transform: scale(1.0); }
+  to   { filter: blur(44px); transform: scale(1.02) translate(-5px,8px); }
+}
+@keyframes drift3 {
+  from { filter: blur(44px); transform: scale(1.0); }
+  to   { filter: blur(48px); transform: scale(1.04) translate(4px,-4px); }
+}
+
+/* ════════════════════════════════════
+   GLASS MATERIALS (theme-aware)
+════════════════════════════════════ */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1.5px 0 var(--rim),
+    inset 0 -1px 0 rgba(0,0,0,0.06),
+    0 8px 24px rgba(0,0,0,0.15);
+}
+.glass-green {
+  background: var(--glass-active-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-active-border);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.22),
+    0 8px 24px var(--glass-active-shadow);
+}
+.glass-dark {
+  background: var(--glass-dark-bg);
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+  border: 1px solid var(--glass-dark-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 12px rgba(0,0,0,0.12);
+}
+
+/* ════════════════════════════════════
+   STATUS BAR
+════════════════════════════════════ */
+.status-bar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 28px 6px;
+  font-size: 12px; font-weight: 600; color: var(--text);
+}
+.status-icons { display: flex; align-items: center; gap: 5px; }
+.status-icons i { font-size: 13px; }
+
+.scroll-area {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  position: relative; z-index: 5; padding-bottom: 100px;
+}
+.scroll-area::-webkit-scrollbar { display: none; }
+
+/* ════════════════════════════════════
+   SCREEN 1 — HOME
+════════════════════════════════════ */
+.home-top { padding: 8px 20px 14px; }
+.greeting-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+}
+.greeting-hi   { font-size: 13px; color: var(--text2); }
+.greeting-name { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+.avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--glass-active-bg);
+  border: 1.5px solid var(--glass-active-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: var(--a300);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.weather-pill {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px;
+}
+.weather-ico  { font-size: 24px; color: var(--a400); }
+.weather-temp { font-size: 15px; font-weight: 700; color: var(--text); }
+.weather-sub  { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+.sec-hd {
+  display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 7px;
+}
+.sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); }
+.sec-link  { font-size: 12px; color: var(--a400); }
+
+.scene-pills { display: flex; gap: 8px; padding: 0 20px 2px; overflow-x: auto; }
+.scene-pills::-webkit-scrollbar { display: none; }
+.scene-pill {
+  display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 22px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+  color: var(--text2);
+}
+.scene-pill i { font-size: 15px; }
+.scene-pill.active { color: var(--text); }
+.scene-pill.active i { color: var(--a400); }
+
+.room-chips { display: flex; gap: 10px; padding: 0 20px 2px; overflow-x: auto; }
+.room-chips::-webkit-scrollbar { display: none; }
+.room-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 14px 12px; border-radius: 18px; min-width: 78px; cursor: pointer; flex-shrink: 0;
+}
+.room-chip-ico {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 21px;
+  color: var(--text3); background: var(--surface-b);
+}
+.room-chip.active .room-chip-ico { background: var(--glass-active-bg); color: var(--a400); }
+.room-chip-name { font-size: 10px; color: var(--text3); text-align: center; }
+.room-chip.active .room-chip-name { color: var(--text); }
+
+.tiles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 2px 20px 0; }
+.tile { border-radius: 20px; padding: 16px 14px 14px; cursor: pointer; position: relative; overflow: hidden; }
+.tile::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), transparent);
+  pointer-events: none; border-radius: 20px 20px 0 0;
+}
+.tile-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.tile-ico {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.tile-ico.on  { background: var(--glass-active-bg); color: var(--a400); }
+.tile-ico.off { background: var(--surface-b); color: var(--text3); }
+.tog {
+  width: 34px; height: 20px; border-radius: 10px; position: relative; flex-shrink: 0; margin-top: 2px;
+}
+.tog.on { background: var(--a500); box-shadow: 0 2px 8px var(--glass-active-shadow); }
+.tog.off { background: var(--glass-dark-bg); border: 1px solid var(--glass-dark-border); }
+.tog::after {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  border-radius: 7px; background: #fff; top: 3px; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.tog.on::after  { left: 17px; }
+.tog.off::after { left: 3px; }
+.tile-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+.tile-state { font-size: 11px; margin-top: 3px; }
+.tile.on .tile-state  { color: var(--a400); }
+.tile.off .tile-state { color: var(--text3); }
+
+/* ════════════════════════════════════
+   SCREEN 2 — ROOMS
+════════════════════════════════════ */
+.page-header { padding: 10px 20px 6px; }
+.page-title { font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+.page-sub   { font-size: 13px; color: var(--text2); margin-top: 4px; }
+.floor-tabs { display: flex; padding: 12px 20px 0; gap: 6px; overflow-x: auto; }
+.floor-tabs::-webkit-scrollbar { display: none; }
+.floor-tab {
+  padding: 7px 18px; font-size: 12px; font-weight: 600;
+  border-radius: 22px; cursor: pointer; white-space: nowrap; color: var(--text3);
+}
+.floor-tab.active { color: var(--a400); }
+.rooms-list { padding: 12px 20px 0; display: flex; flex-direction: column; gap: 10px; }
+.room-row {
+  display: flex; align-items: center; gap: 14px;
+  border-radius: 20px; padding: 14px 16px; cursor: pointer; position: relative; overflow: hidden;
+}
+.room-row::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), transparent); pointer-events: none;
+}
+.room-row-ico {
+  width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+  background: var(--surface-b); color: var(--text2);
+}
+.room-row.active .room-row-ico { background: var(--glass-active-bg); color: var(--a400); }
+.room-row-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.room-row-sub  { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.room-row-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 10px; }
+.badge-on  { background: var(--glass-active-bg); color: var(--a400); border: 1px solid var(--glass-active-border); }
+.badge-off { background: var(--surface-b); color: var(--text3); border: 1px solid var(--border); }
+.caret { color: var(--text3); font-size: 16px; }
+
+/* ════════════════════════════════════
+   SCREEN 3 — APPEARANCE (SETTINGS)
+════════════════════════════════════ */
+.settings-scroll { flex: 1; overflow-y: auto; padding-bottom: 100px; position: relative; z-index: 5; }
+.settings-scroll::-webkit-scrollbar { display: none; }
+.settings-header { padding: 10px 20px 12px; }
+.settings-title { font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+.settings-nav { padding: 0 20px 14px; display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px;
+  cursor: pointer; color: var(--text2); font-size: 14px;
+}
+.nav-item i { font-size: 20px; color: var(--text3); }
+.nav-item.active { color: var(--a400); }
+.nav-item.active i { color: var(--a400); }
+
+.appearance-section { padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+.ap-card { border-radius: 20px; padding: 16px; }
+.ap-card-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text3); margin-bottom: 12px;
+}
+/* Mode picker inside phone */
+.ap-modes { display: flex; gap: 8px; }
+.ap-mode {
+  flex: 1; padding: 12px 8px; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer; border: 2px solid transparent;
+}
+.ap-mode.sel { border-color: var(--a500); }
+.ap-mode-preview {
+  width: 52px; height: 38px; border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+/* Dark preview */
+.prev-dark { background: #111; }
+.prev-dark::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+}
+/* Light preview */
+.prev-light { background: #f8f8f6; }
+.prev-light::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, transparent 60%);
+}
+/* Theme preview */
+.prev-theme {
+  background:
+    radial-gradient(circle at 30% 30%, var(--a500) 0%, transparent 70%),
+    radial-gradient(circle at 75% 70%, var(--a600) 0%, transparent 60%), #0d0d0d;
+}
+.ap-mode-label { font-size: 11px; font-weight: 600; color: var(--text2); text-align: center; }
+.ap-mode.sel .ap-mode-label { color: var(--a400); }
+
+/* Color palette inside phone */
+.ap-colors { display: flex; gap: 10px; flex-wrap: wrap; }
+.ap-color {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  border: 3px solid transparent; transition: transform 0.2s;
+}
+.ap-color:hover { transform: scale(1.1); }
+.ap-color.sel { border-color: var(--text); box-shadow: 0 0 0 2px var(--glass-active-border); }
+.ap-c-em { background: radial-gradient(circle at 35% 35%, #34d399, #059669); }
+.ap-c-sa { background: radial-gradient(circle at 35% 35%, #93c5fd, #1d4ed8); }
+.ap-c-am { background: radial-gradient(circle at 35% 35%, #fde68a, #b45309); }
+.ap-c-ro { background: radial-gradient(circle at 35% 35%, #fda4af, #be123c); }
+.ap-c-vi { background: radial-gradient(circle at 35% 35%, #c4b5fd, #6d28d9); }
+
+.ap-preview-bar {
+  height: 44px; border-radius: 14px;
+  background: linear-gradient(90deg, var(--a300), var(--a500) 50%, var(--a600));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: var(--a-text);
+  box-shadow: 0 4px 16px var(--glass-active-shadow);
+}
+
+/* ════════════════════════════════════
+   FLOATING NAV BAR
+════════════════════════════════════ */
+.floating-nav {
+  position: absolute; bottom: 20px; left: 18px; right: 18px;
+  z-index: 50; border-radius: 30px; padding: 10px 6px;
+  display: flex; align-items: center; justify-content: space-around;
+}
+.tab {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 14px; border-radius: 22px; cursor: pointer; color: var(--text3);
+}
+.tab.active { color: var(--text); }
+.tab i { font-size: 22px; }
+.tab span { font-size: 9px; font-weight: 600; letter-spacing: 0.3px; }
+.tab.active i { color: var(--a400); }
+
+/* ════════════════════════════════════
+   MOCKUP BADGE
+════════════════════════════════════ */
+.mockup-badge {
+  position: fixed; bottom: 16px; right: 16px;
+  border-radius: 12px; padding: 8px 14px; font-size: 12px;
+  color: rgba(255,255,255,0.28);
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--glass-active-border);
+}
+body.mode-light .mockup-badge { color: rgba(0,0,0,0.3); background: rgba(255,255,255,0.6); }
+.mockup-badge strong { color: var(--a400); }
+</style>
+</head>
+<body class="mode-theme" id="body">
+
+<p class="hdr">PropertyCore Mobile App</p>
+<p class="tagline">Flutter · Android + iOS · <strong id="tagline-theme">Liquid Glass · Emerald</strong></p>
+
+<!-- ══════════ FLOATING CONTROLS ══════════ -->
+<div class="controls" id="controls">
+  <div class="ctrl-group">
+    <div class="ctrl-label">Background Mode</div>
+    <div class="mode-btns">
+      <button class="mode-btn" onclick="setMode('dark')">Dark</button>
+      <button class="mode-btn" onclick="setMode('light')">Light</button>
+      <button class="mode-btn active" onclick="setMode('theme')">Theme</button>
+    </div>
+  </div>
+  <div class="ctrl-divider"></div>
+  <div class="ctrl-group">
+    <div class="ctrl-label">Accent Color</div>
+    <div class="theme-swatches">
+      <div class="swatch swatch-em active" title="Emerald" onclick="setTheme('em')"></div>
+      <div class="swatch swatch-sa" title="Sapphire" onclick="setTheme('sa')"></div>
+      <div class="swatch swatch-am" title="Amber"    onclick="setTheme('am')"></div>
+      <div class="swatch swatch-ro" title="Rose"     onclick="setTheme('ro')"></div>
+      <div class="swatch swatch-vi" title="Violet"   onclick="setTheme('vi')"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PHONES ══════════ -->
+<div class="phones">
+
+  <!-- ── PHONE 1: HOME ── -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <div class="wallpaper w1"></div>
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+        </div>
+        <div class="scroll-area">
+          <div class="home-top">
+            <div class="greeting-row">
+              <div>
+                <div class="greeting-hi">Good evening,</div>
+                <div class="greeting-name">Syeed</div>
+              </div>
+              <div class="avatar">S</div>
+            </div>
+            <div class="weather-pill glass">
+              <i class="ph-fill ph-thermometer weather-ico"></i>
+              <div>
+                <div class="weather-temp">34°C · Lagos</div>
+                <div class="weather-sub">2 ACs running · Hub online</div>
+              </div>
+            </div>
+          </div>
+          <div class="sec-hd"><div class="sec-title">Quick Scenes</div><div class="sec-link">All</div></div>
+          <div class="scene-pills">
+            <div class="scene-pill glass-green active"><i class="ph-bold ph-sun"></i>Morning</div>
+            <div class="scene-pill glass"><i class="ph-bold ph-film-strip"></i>Movie</div>
+            <div class="scene-pill glass"><i class="ph-bold ph-moon"></i>Night</div>
+            <div class="scene-pill glass"><i class="ph-bold ph-lock-simple"></i>Away</div>
+          </div>
+          <div class="sec-hd"><div class="sec-title">Rooms</div><div class="sec-link">All</div></div>
+          <div class="room-chips">
+            <div class="room-chip glass-green active"><div class="room-chip-ico"><i class="ph-fill ph-couch"></i></div><div class="room-chip-name">Living</div></div>
+            <div class="room-chip glass"><div class="room-chip-ico"><i class="ph-fill ph-bed"></i></div><div class="room-chip-name">Bedroom</div></div>
+            <div class="room-chip glass"><div class="room-chip-ico"><i class="ph-fill ph-cooking-pot"></i></div><div class="room-chip-name">Kitchen</div></div>
+            <div class="room-chip glass"><div class="room-chip-ico"><i class="ph-fill ph-monitor"></i></div><div class="room-chip-name">Study</div></div>
+          </div>
+          <div class="sec-hd"><div class="sec-title">Living Room</div></div>
+          <div class="tiles-grid">
+            <div class="tile glass on">
+              <div class="tile-top"><div class="tile-ico on"><i class="ph-fill ph-lightbulb"></i></div><div class="tog on"></div></div>
+              <div class="tile-name">Ceiling</div><div class="tile-state">On · 100%</div>
+            </div>
+            <div class="tile glass-dark off">
+              <div class="tile-top"><div class="tile-ico off"><i class="ph-fill ph-wind"></i></div><div class="tog off"></div></div>
+              <div class="tile-name">AC Unit</div><div class="tile-state">Off</div>
+            </div>
+            <div class="tile glass on">
+              <div class="tile-top"><div class="tile-ico on"><i class="ph-fill ph-television"></i></div><div class="tog on"></div></div>
+              <div class="tile-name">TV Plug</div><div class="tile-state">On</div>
+            </div>
+            <div class="tile glass-dark off">
+              <div class="tile-top"><div class="tile-ico off"><i class="ph-fill ph-speaker-high"></i></div><div class="tog off"></div></div>
+              <div class="tile-name">Soundbar</div><div class="tile-state">Off</div>
+            </div>
+          </div>
+        </div>
+        <div class="floating-nav glass">
+          <div class="tab active"><i class="ph-fill ph-house-simple"></i><span>Home</span></div>
+          <div class="tab"><i class="ph-bold ph-door"></i><span>Rooms</span></div>
+          <div class="tab"><i class="ph-bold ph-magic-wand"></i><span>Scenes</span></div>
+          <div class="tab"><i class="ph-bold ph-dots-three-circle"></i><span>More</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Home</div>
+  </div>
+
+  <!-- ── PHONE 2: ROOMS ── -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <div class="wallpaper w2"></div>
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+        </div>
+        <div class="scroll-area">
+          <div class="page-header">
+            <div class="page-title">Rooms</div>
+            <div class="page-sub">6 rooms · 12 devices</div>
+          </div>
+          <div class="floor-tabs">
+            <div class="floor-tab glass active">Ground Floor</div>
+            <div class="floor-tab glass">First Floor</div>
+            <div class="floor-tab glass">All</div>
+          </div>
+          <div class="rooms-list">
+            <div class="room-row glass active">
+              <div class="room-row-ico"><i class="ph-fill ph-couch"></i></div>
+              <div><div class="room-row-name">Living Room</div><div class="room-row-sub">5 devices</div></div>
+              <div class="room-row-right"><div class="badge badge-on">3 ON</div><div class="caret"><i class="ph-bold ph-caret-right"></i></div></div>
+            </div>
+            <div class="room-row glass">
+              <div class="room-row-ico"><i class="ph-fill ph-cooking-pot"></i></div>
+              <div><div class="room-row-name">Kitchen</div><div class="room-row-sub">3 devices</div></div>
+              <div class="room-row-right"><div class="badge badge-on">2 ON</div><div class="caret"><i class="ph-bold ph-caret-right"></i></div></div>
+            </div>
+            <div class="room-row glass-dark">
+              <div class="room-row-ico"><i class="ph-fill ph-shower"></i></div>
+              <div><div class="room-row-name">Bathroom</div><div class="room-row-sub">2 devices</div></div>
+              <div class="room-row-right"><div class="badge badge-off">All Off</div><div class="caret"><i class="ph-bold ph-caret-right"></i></div></div>
+            </div>
+            <div class="room-row glass">
+              <div class="room-row-ico"><i class="ph-fill ph-bed"></i></div>
+              <div><div class="room-row-name">Master Bedroom</div><div class="room-row-sub">4 devices</div></div>
+              <div class="room-row-right"><div class="badge badge-on">1 ON</div><div class="caret"><i class="ph-bold ph-caret-right"></i></div></div>
+            </div>
+            <div class="room-row glass-dark">
+              <div class="room-row-ico"><i class="ph-fill ph-monitor"></i></div>
+              <div><div class="room-row-name">Study</div><div class="room-row-sub">2 devices</div></div>
+              <div class="room-row-right"><div class="badge badge-off">All Off</div><div class="caret"><i class="ph-bold ph-caret-right"></i></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="floating-nav glass">
+          <div class="tab"><i class="ph-bold ph-house-simple"></i><span>Home</span></div>
+          <div class="tab active"><i class="ph-fill ph-door"></i><span>Rooms</span></div>
+          <div class="tab"><i class="ph-bold ph-magic-wand"></i><span>Scenes</span></div>
+          <div class="tab"><i class="ph-bold ph-dots-three-circle"></i><span>More</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Rooms</div>
+  </div>
+
+  <!-- ── PHONE 3: APPEARANCE SETTINGS ── -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <div class="wallpaper w3"></div>
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+        </div>
+        <div class="settings-scroll">
+          <div class="settings-header">
+            <div class="page-title">Settings</div>
+          </div>
+          <!-- Nav list to set context -->
+          <div class="settings-nav">
+            <div class="nav-item"><i class="ph-bold ph-bell"></i>Notifications</div>
+            <div class="nav-item"><i class="ph-bold ph-wifi-high"></i>Hub Connection</div>
+            <div class="nav-item"><i class="ph-bold ph-users"></i>Users &amp; Access</div>
+            <div class="nav-item active"><i class="ph-bold ph-paint-brush"></i>Appearance</div>
+            <div class="nav-item"><i class="ph-bold ph-info"></i>About PropertyCore</div>
+          </div>
+
+          <div class="appearance-section">
+            <!-- Mode picker -->
+            <div class="ap-card glass">
+              <div class="ap-card-title">Background Style</div>
+              <div class="ap-modes">
+                <div class="ap-mode" id="ap-dark" onclick="setMode('dark')">
+                  <div class="ap-mode-preview prev-dark"></div>
+                  <div class="ap-mode-label">Dark</div>
+                </div>
+                <div class="ap-mode" id="ap-light" onclick="setMode('light')">
+                  <div class="ap-mode-preview prev-light"></div>
+                  <div class="ap-mode-label">Light</div>
+                </div>
+                <div class="ap-mode sel" id="ap-theme" onclick="setMode('theme')">
+                  <div class="ap-mode-preview prev-theme"></div>
+                  <div class="ap-mode-label">Theme</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Color palette -->
+            <div class="ap-card glass">
+              <div class="ap-card-title">Accent Color</div>
+              <div class="ap-colors">
+                <div class="ap-color ap-c-em sel" id="ap-em" title="Emerald" onclick="setTheme('em')"></div>
+                <div class="ap-color ap-c-sa"     id="ap-sa" title="Sapphire" onclick="setTheme('sa')"></div>
+                <div class="ap-color ap-c-am"     id="ap-am" title="Amber"    onclick="setTheme('am')"></div>
+                <div class="ap-color ap-c-ro"     id="ap-ro" title="Rose"     onclick="setTheme('ro')"></div>
+                <div class="ap-color ap-c-vi"     id="ap-vi" title="Violet"   onclick="setTheme('vi')"></div>
+              </div>
+            </div>
+
+            <!-- Live preview bar -->
+            <div class="ap-preview-bar" id="ap-preview-bar">Accent Preview</div>
+
+            <!-- Note -->
+            <div style="font-size:11px; color:var(--text3); padding:0 4px; line-height:1.6;">
+              Theme mode uses animated colour blobs behind the glass surfaces. Dark and Light modes keep a flat background with your chosen accent colour applied to icons, toggles, and highlights.
+            </div>
+          </div>
+        </div>
+        <div class="floating-nav glass">
+          <div class="tab"><i class="ph-bold ph-house-simple"></i><span>Home</span></div>
+          <div class="tab"><i class="ph-bold ph-door"></i><span>Rooms</span></div>
+          <div class="tab"><i class="ph-bold ph-magic-wand"></i><span>Scenes</span></div>
+          <div class="tab active"><i class="ph-fill ph-dots-three-circle"></i><span>More</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Appearance</div>
+  </div>
+
+</div><!-- end .phones -->
+
+<div class="mockup-badge"><strong>MOCKUP</strong> · Interactive Theme Preview</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   THEME DEFINITIONS
+══════════════════════════════════════════════ */
+const THEMES = {
+  em: {
+    name: 'Liquid Glass · Emerald',
+    a500: '#10b981', a400: '#34d399', a300: '#6ee7b7', a600: '#059669', atext: '#052e16',
+    blob1a: 'rgba(16,185,129,0.50)', blob1b: 'rgba(52,211,153,0.25)',
+    blob1c: 'rgba(5,150,105,0.40)',  blob1d: 'rgba(4,120,87,0.30)',
+    gaBg: 'rgba(16,185,129,0.15)',   gaBorder: 'rgba(16,185,129,0.30)', gaShadow: 'rgba(16,185,129,0.15)',
+    bodyBg: '#060a08',
+  },
+  sa: {
+    name: 'Liquid Glass · Sapphire',
+    a500: '#3b82f6', a400: '#60a5fa', a300: '#93c5fd', a600: '#1d4ed8', atext: '#0c1445',
+    blob1a: 'rgba(59,130,246,0.50)', blob1b: 'rgba(96,165,250,0.25)',
+    blob1c: 'rgba(29,78,216,0.40)',  blob1d: 'rgba(30,58,138,0.30)',
+    gaBg: 'rgba(59,130,246,0.15)',   gaBorder: 'rgba(96,165,250,0.30)', gaShadow: 'rgba(59,130,246,0.18)',
+    bodyBg: '#06080a',
+  },
+  am: {
+    name: 'Liquid Glass · Amber',
+    a500: '#f59e0b', a400: '#fbbf24', a300: '#fde68a', a600: '#b45309', atext: '#3b1a00',
+    blob1a: 'rgba(245,158,11,0.50)', blob1b: 'rgba(251,191,36,0.25)',
+    blob1c: 'rgba(180,83,9,0.40)',   blob1d: 'rgba(120,53,15,0.30)',
+    gaBg: 'rgba(245,158,11,0.15)',   gaBorder: 'rgba(251,191,36,0.30)', gaShadow: 'rgba(245,158,11,0.18)',
+    bodyBg: '#0a0800',
+  },
+  ro: {
+    name: 'Liquid Glass · Rose',
+    a500: '#f43f5e', a400: '#fb7185', a300: '#fda4af', a600: '#be123c', atext: '#3b0015',
+    blob1a: 'rgba(244,63,94,0.50)',  blob1b: 'rgba(251,113,133,0.25)',
+    blob1c: 'rgba(190,18,60,0.40)',  blob1d: 'rgba(136,14,48,0.30)',
+    gaBg: 'rgba(244,63,94,0.15)',    gaBorder: 'rgba(251,113,133,0.30)', gaShadow: 'rgba(244,63,94,0.18)',
+    bodyBg: '#0a0608',
+  },
+  vi: {
+    name: 'Liquid Glass · Violet',
+    a500: '#8b5cf6', a400: '#a78bfa', a300: '#c4b5fd', a600: '#6d28d9', atext: '#1e0a3b',
+    blob1a: 'rgba(139,92,246,0.50)', blob1b: 'rgba(167,139,250,0.25)',
+    blob1c: 'rgba(109,40,217,0.40)', blob1d: 'rgba(91,33,182,0.30)',
+    gaBg: 'rgba(139,92,246,0.15)',   gaBorder: 'rgba(167,139,250,0.30)', gaShadow: 'rgba(139,92,246,0.18)',
+    bodyBg: '#07060a',
+  },
+};
+
+let currentMode  = 'theme';
+let currentTheme = 'em';
+
+function applyVars(t) {
+  const r = document.documentElement.style;
+  r.setProperty('--a500',   t.a500);
+  r.setProperty('--a400',   t.a400);
+  r.setProperty('--a300',   t.a300);
+  r.setProperty('--a600',   t.a600);
+  r.setProperty('--a-text', t.atext);
+  r.setProperty('--blob1a', t.blob1a);
+  r.setProperty('--blob1b', t.blob1b);
+  r.setProperty('--blob1c', t.blob1c);
+  r.setProperty('--blob1d', t.blob1d || 'transparent');
+  r.setProperty('--glass-active-bg',     t.gaBg);
+  r.setProperty('--glass-active-border', t.gaBorder);
+  r.setProperty('--glass-active-shadow', t.gaShadow);
+  if (currentMode === 'theme') {
+    r.setProperty('--bg', t.bodyBg);
+  }
+}
+
+function setTheme(key) {
+  currentTheme = key;
+  const t = THEMES[key];
+  applyVars(t);
+
+  // Update tagline
+  document.getElementById('tagline-theme').textContent = t.name;
+
+  // Floating swatches
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  document.querySelector('.swatch-' + key)?.classList.add('active');
+
+  // In-phone color dots
+  ['em','sa','am','ro','vi'].forEach(k => {
+    document.getElementById('ap-' + k)?.classList.toggle('sel', k === key);
+  });
+
+  // Update prev-theme background
+  document.querySelectorAll('.prev-theme').forEach(el => {
+    el.style.background =
+      `radial-gradient(circle at 30% 30%, ${t.a500} 0%, transparent 70%),
+       radial-gradient(circle at 75% 70%, ${t.a600} 0%, transparent 60%), #0d0d0d`;
+  });
+}
+
+function setMode(m) {
+  currentMode = m;
+  const body = document.getElementById('body');
+  body.className = 'mode-' + m;
+
+  // Fix body bg for theme mode
+  if (m === 'theme') {
+    document.documentElement.style.setProperty('--bg', THEMES[currentTheme].bodyBg);
+  }
+
+  // Floating mode buttons
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase() === m ||
+      (m === 'theme' && b.textContent === 'Theme') ||
+      (m === 'dark'  && b.textContent === 'Dark')  ||
+      (m === 'light' && b.textContent === 'Light'));
+  });
+
+  // In-phone mode cards
+  ['dark','light','theme'].forEach(k => {
+    document.getElementById('ap-' + k)?.classList.toggle('sel', k === m);
+  });
+}
+
+// Init — apply emerald vars on load
+applyVars(THEMES.em);
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.9.0
-// Adds Device Registry: persistent device metadata (name, type, room assignment).
-// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + room.go + user.go + scheduler.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.11.0
+// Adds Area rename (Room→Area), Floor entity, Property singleton.
+// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + api.go + ws.go
 package main
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version     = "0.9.0"
+	version     = "0.11.0"
 	httpPort    = "8080"
 	mqttDefault = "localhost:1883"
 )
@@ -88,13 +88,29 @@ func main() {
 		log.Printf("Loaded %d rule(s) from store", len(stored))
 	}
 
-	// Room manager
-	rooms := NewRoomManager(store)
-	if stored := store.LoadRooms(); len(stored) > 0 {
-		for _, r := range stored {
-			rooms.Add(r)
+	// Area manager
+	areas := NewAreaManager(store)
+	if stored := store.LoadAreas(); len(stored) > 0 {
+		for _, a := range stored {
+			areas.Add(a)
 		}
-		log.Printf("Loaded %d room(s) from store", len(stored))
+		log.Printf("Loaded %d area(s) from store", len(stored))
+	}
+
+	// Floor manager
+	floors := NewFloorManager(store)
+	if stored := store.LoadFloors(); len(stored) > 0 {
+		for _, f := range stored {
+			floors.Add(f)
+		}
+		log.Printf("Loaded %d floor(s) from store", len(stored))
+	}
+
+	// Property singleton
+	prop := NewPropertyManager(store)
+	if stored := store.LoadProperty(); stored != nil {
+		prop.Load(stored)
+		log.Printf("Loaded property: %s (%s)", stored.Name, stored.Type)
 	}
 
 	// User manager
@@ -105,6 +121,9 @@ func main() {
 		}
 		log.Printf("Loaded %d user(s) from store", len(stored))
 	}
+
+	// Session manager — in-memory PIN auth tokens for the mobile app
+	sessions := NewSessionManager()
 
 	// Schedule manager — start ticker after all scenes are loaded
 	scheduler := NewScheduleManager(scenes, mqttClient, store)
@@ -122,17 +141,22 @@ func main() {
 	// HTTP API
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/status", makeStatusHandler(mqttClient, registry, state, scenes, rulesEngine, rooms, users, scheduler, wsHub))
+	mux.HandleFunc("/status", makeStatusHandler(mqttClient, registry, state, scenes, rulesEngine, floors, areas, users, scheduler, wsHub))
 	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(registry, state))
 	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(registry, state))
 	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/scenes/", makeScenesHandler(scenes, mqttClient, wsHub))
 	mux.HandleFunc("/api/v1/rules", makeRulesHandler(rulesEngine))
 	mux.HandleFunc("/api/v1/rules/", makeRulesHandler(rulesEngine))
-	mux.HandleFunc("/api/v1/rooms", makeRoomsHandler(rooms))
-	mux.HandleFunc("/api/v1/rooms/", makeRoomsHandler(rooms))
+	mux.HandleFunc("/api/v1/areas", makeAreasHandler(areas))
+	mux.HandleFunc("/api/v1/areas/", makeAreasHandler(areas))
+	mux.HandleFunc("/api/v1/floors", makeFloorsHandler(floors))
+	mux.HandleFunc("/api/v1/floors/", makeFloorsHandler(floors))
+	mux.HandleFunc("/api/v1/property", makePropertyHandler(prop))
 	mux.HandleFunc("/api/v1/users", makeUsersHandler(users))
 	mux.HandleFunc("/api/v1/users/", makeUsersHandler(users))
+	mux.HandleFunc("/api/v1/auth", makeAuthHandler(users, sessions))
+	mux.HandleFunc("/api/v1/auth/", makeAuthHandler(users, sessions))
 	mux.HandleFunc("/api/v1/schedules", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/api/v1/schedules/", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))

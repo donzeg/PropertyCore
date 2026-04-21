@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PropertyCore — Dashboard Mockup</title>
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #18181b;
+      --surface:   #27272a;
+      --surface2:  #3f3f46;
+      --border:    #52525b;
+      --text:      #f4f4f5;
+      --muted:     #a1a1aa;
+      --accent:    #10b981;
+      --accent-dk: #059669;
+      --accent-lt: #6ee7b7;
+      --green:     #34d399;
+      --red:       #ef4444;
+      --blue:      #60a5fa;
+      --yellow:    #fbbf24;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────── */
+    .sidebar {
+      width: 228px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .logo {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-mark { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      color: #052e16;
+    }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-sub  { font-size: 10px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+    .nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+    .nav-section-label {
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); padding: 10px 10px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      color: var(--muted); font-size: 13.5px; transition: all 0.15s;
+      margin-bottom: 1px;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(16,185,129,0.12); color: var(--accent-lt); }
+    .nav-item.active i { color: var(--accent); }
+    .nav-item i { font-size: 18px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; background: var(--accent);
+      color: #052e16; font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 99px;
+    }
+    .sidebar-footer {
+      padding: 14px 16px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .hub-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .hub-info strong { color: var(--text); font-size: 13px; display: block; }
+    .hub-info span   { font-size: 11px; color: var(--muted); }
+
+    /* ── MAIN ────────────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-title { font-size: 18px; font-weight: 600; }
+    .topbar-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .mqtt-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--muted);
+      padding: 6px 12px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .mqtt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px; border: none;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+    }
+    .btn-green { background: var(--accent); color: #052e16; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+    .content { flex: 1; overflow-y: auto; padding: 22px 28px; }
+
+    /* ── STATS ───────────────────────────────── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 14px; margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .stat-card.accent { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+    .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+    .stat-ico {
+      width: 34px; height: 34px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center; font-size: 19px;
+    }
+    .stat-ico.green  { background: rgba(16,185,129,0.12);  color: var(--accent); }
+    .stat-ico.teal   { background: rgba(52,211,153,0.12);  color: var(--green); }
+    .stat-ico.blue   { background: rgba(96,165,250,0.12);  color: var(--blue); }
+    .stat-ico.yellow { background: rgba(251,191,36,0.12);  color: var(--yellow); }
+    .stat-value { font-size: 30px; font-weight: 700; }
+    .stat-card.accent .stat-value { color: var(--accent); }
+    .stat-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* ── SECTIONS ────────────────────────────── */
+    .section-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
+    .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+    .section-link  { font-size: 12px; color: var(--accent); cursor: pointer; }
+
+    /* ── ROOMS ───────────────────────────────── */
+    .rooms-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px;
+    }
+    .room-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 16px 14px; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .room-card:hover { border-color: var(--accent-dk); }
+    .room-card.active { border-color: var(--accent); background: rgba(16,185,129,0.04); }
+    .room-ico {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--surface2); display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: var(--muted); margin-bottom: 10px;
+    }
+    .room-card.active .room-ico { background: rgba(16,185,129,0.12); color: var(--accent); }
+    .room-name  { font-size: 13px; font-weight: 600; }
+    .room-count { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .room-bar   { margin-top: 10px; height: 3px; background: var(--surface2); border-radius: 2px; }
+    .room-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+    .room-add {
+      border: 1.5px dashed var(--border); display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; color: var(--muted); cursor: pointer;
+    }
+    .room-add:hover { border-color: var(--muted); }
+
+    /* ── TWO-COL ─────────────────────────────── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-title  { font-size: 13px; font-weight: 600; }
+    .card-action { font-size: 12px; color: var(--accent); cursor: pointer; }
+
+    /* ── DEVICES ─────────────────────────────── */
+    .device-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--surface2);
+    }
+    .device-row:last-child { border-bottom: none; }
+    .dev-ico {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px; flex-shrink: 0;
+    }
+    .dev-ico.on  { background: rgba(16,185,129,0.1); color: var(--accent); }
+    .dev-ico.off { background: var(--surface2); color: var(--muted); }
+    .dev-name { font-size: 13px; font-weight: 500; }
+    .dev-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .dev-state {
+      margin-left: auto; font-size: 11px; font-weight: 600;
+      padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+    }
+    .s-on  { background: rgba(16,185,129,0.1);  color: var(--accent); }
+    .s-off { background: var(--surface2); color: var(--muted); }
+    .s-val { background: rgba(96,165,250,0.1);  color: var(--blue); }
+    .toggle {
+      width: 36px; height: 20px; border-radius: 10px;
+      position: relative; cursor: pointer; flex-shrink: 0; margin-left: 8px;
+    }
+    .toggle.on  { background: var(--accent); }
+    .toggle.off { background: var(--surface2); }
+    .toggle::after {
+      content: ''; position: absolute; width: 14px; height: 14px;
+      border-radius: 7px; background: white; top: 3px; transition: left 0.15s;
+    }
+    .toggle.on::after  { left: 19px; }
+    .toggle.off::after { left: 3px; }
+
+    /* ── ACTIVITY ────────────────────────────── */
+    .feed-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--surface2);
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-ico {
+      width: 30px; height: 30px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0; margin-top: 1px;
+    }
+    .feed-text { font-size: 13px; line-height: 1.4; }
+    .feed-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── SCENES ──────────────────────────────── */
+    .scenes-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+    .mockup-badge {
+      position: fixed; bottom: 16px; right: 16px;
+      background: var(--surface); border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 10px; padding: 8px 14px;
+      font-size: 12px; color: var(--muted);
+    }
+    .mockup-badge strong { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">
+      <div class="logo-icon">
+        <i class="ph-bold ph-lightning" style="font-size:20px"></i>
+      </div>
+      <div>
+        <div class="logo-text">PropertyCore</div>
+        <div class="logo-sub">Config Dashboard</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section-label">Monitor</div>
+    <div class="nav-item active">
+      <i class="ph-bold ph-squares-four"></i>Overview
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-cpu"></i>Devices
+      <span class="nav-badge">12</span>
+    </div>
+
+    <div class="nav-section-label">Configure</div>
+    <div class="nav-item">
+      <i class="ph-bold ph-door"></i>Rooms
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-magic-wand"></i>Scenes
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-funnel"></i>Rules
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-clock"></i>Schedules
+    </div>
+
+    <div class="nav-section-label">System</div>
+    <div class="nav-item">
+      <i class="ph-bold ph-users-three"></i>Users
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-wifi-high"></i>Network
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-arrow-circle-up"></i>Updates
+    </div>
+    <div class="nav-item">
+      <i class="ph-bold ph-gear"></i>Settings
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="hub-dot"></div>
+    <div class="hub-info">
+      <strong>propertycore-hub</strong>
+      <span>v0.9.0 · uptime 4h 22m</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══════════════════════════════════════════════════════════════ -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Overview</div>
+      <div class="topbar-sub">Monday, 20 April 2026 · 22:14</div>
+    </div>
+    <div class="topbar-right">
+      <div class="mqtt-badge">
+        <div class="mqtt-dot"></div>
+        MQTT · 3 clients online
+      </div>
+      <button class="btn btn-ghost">
+        <i class="ph-bold ph-arrow-clockwise"></i> Refresh
+      </button>
+      <button class="btn btn-green">
+        <i class="ph-bold ph-plus"></i> Add Device
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid">
+      <div class="stat-card accent">
+        <div class="stat-header">
+          <div class="stat-label">Devices Online</div>
+          <div class="stat-ico green"><i class="ph-fill ph-cpu"></i></div>
+        </div>
+        <div class="stat-value">12</div>
+        <div class="stat-sub">2 offline · 1 warning</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-label">Rooms</div>
+          <div class="stat-ico teal"><i class="ph-fill ph-house-simple"></i></div>
+        </div>
+        <div class="stat-value">6</div>
+        <div class="stat-sub">Across 2 floors</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-label">Active Scenes</div>
+          <div class="stat-ico blue"><i class="ph-fill ph-magic-wand"></i></div>
+        </div>
+        <div class="stat-value">4</div>
+        <div class="stat-sub">8 total configured</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-label">Rules Active</div>
+          <div class="stat-ico yellow"><i class="ph-fill ph-funnel"></i></div>
+        </div>
+        <div class="stat-value">3</div>
+        <div class="stat-sub">1 triggered today</div>
+      </div>
+    </div>
+
+    <!-- ROOMS -->
+    <div class="section-row">
+      <div class="section-title">Rooms</div>
+      <div class="section-link">Manage rooms →</div>
+    </div>
+    <div class="rooms-grid">
+      <div class="room-card active">
+        <div class="room-ico"><i class="ph-fill ph-couch"></i></div>
+        <div class="room-name">Living Room</div>
+        <div class="room-count">5 devices · 3 on</div>
+        <div class="room-bar"><div class="room-bar-fill" style="width:60%"></div></div>
+      </div>
+      <div class="room-card">
+        <div class="room-ico"><i class="ph-fill ph-bed"></i></div>
+        <div class="room-name">Master Bedroom</div>
+        <div class="room-count">4 devices · 1 on</div>
+        <div class="room-bar"><div class="room-bar-fill" style="width:25%"></div></div>
+      </div>
+      <div class="room-card">
+        <div class="room-ico"><i class="ph-fill ph-cooking-pot"></i></div>
+        <div class="room-name">Kitchen</div>
+        <div class="room-count">3 devices · 2 on</div>
+        <div class="room-bar"><div class="room-bar-fill" style="width:66%"></div></div>
+      </div>
+      <div class="room-card">
+        <div class="room-ico"><i class="ph-fill ph-monitor"></i></div>
+        <div class="room-name">Study</div>
+        <div class="room-count">2 devices · 0 on</div>
+        <div class="room-bar"><div class="room-bar-fill" style="width:0%"></div></div>
+      </div>
+      <div class="room-card">
+        <div class="room-ico"><i class="ph-fill ph-shower"></i></div>
+        <div class="room-name">Bathroom</div>
+        <div class="room-count">2 devices · 1 on</div>
+        <div class="room-bar"><div class="room-bar-fill" style="width:50%"></div></div>
+      </div>
+      <div class="room-card room-add">
+        <i class="ph-bold ph-plus-circle" style="font-size:26px"></i>
+        <div style="font-size:12px">Add Room</div>
+      </div>
+    </div>
+
+    <!-- DEVICES + ACTIVITY -->
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Live Device State</div>
+          <div class="card-action">View all →</div>
+        </div>
+
+        <div class="device-row">
+          <div class="dev-ico on"><i class="ph-fill ph-lightbulb"></i></div>
+          <div>
+            <div class="dev-name">Living Room Main Light</div>
+            <div class="dev-meta">relay · ch1 · PC-RLY-4CH-W</div>
+          </div>
+          <div class="dev-state s-on">ON</div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="device-row">
+          <div class="dev-ico on"><i class="ph-fill ph-wind"></i></div>
+          <div>
+            <div class="dev-name">Master Bedroom AC</div>
+            <div class="dev-meta">ac-gateway · zone 1</div>
+          </div>
+          <div class="dev-state s-val">22°C</div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="device-row">
+          <div class="dev-ico off"><i class="ph-fill ph-lightbulb"></i></div>
+          <div>
+            <div class="dev-name">Kitchen Downlights</div>
+            <div class="dev-meta">relay · ch1–ch3</div>
+          </div>
+          <div class="dev-state s-off">OFF</div>
+          <div class="toggle off"></div>
+        </div>
+        <div class="device-row">
+          <div class="dev-ico off"><i class="ph-fill ph-plug"></i></div>
+          <div>
+            <div class="dev-name">Study Plug A</div>
+            <div class="dev-meta">relay · ch1</div>
+          </div>
+          <div class="dev-state s-off">OFF</div>
+          <div class="toggle off"></div>
+        </div>
+        <div class="device-row">
+          <div class="dev-ico on"><i class="ph-fill ph-thermometer"></i></div>
+          <div>
+            <div class="dev-name">Hallway Temp Sensor</div>
+            <div class="dev-meta">sensor · MQTT</div>
+          </div>
+          <div class="dev-state s-val">29.4°C</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Activity</div>
+          <div class="card-action">Clear</div>
+        </div>
+
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(16,185,129,0.1);color:var(--accent)">
+            <i class="ph-bold ph-magic-wand"></i></div>
+          <div>
+            <div class="feed-text">Scene <strong>Good Morning</strong> executed</div>
+            <div class="feed-time">22:10 · triggered by schedule</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(52,211,153,0.1);color:var(--green)">
+            <i class="ph-bold ph-cpu"></i></div>
+          <div>
+            <div class="feed-text">Device <strong>relay-kitchen-01</strong> connected</div>
+            <div class="feed-time">21:48 · MQTT</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(96,165,250,0.1);color:var(--blue)">
+            <i class="ph-bold ph-funnel"></i></div>
+          <div>
+            <div class="feed-text">Rule <strong>Motion → Hallway Light</strong> triggered</div>
+            <div class="feed-time">21:32 · condition met</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(239,68,68,0.1);color:var(--red)">
+            <i class="ph-bold ph-warning-circle"></i></div>
+          <div>
+            <div class="feed-text">Device <strong>relay-guest-01</strong> went offline</div>
+            <div class="feed-time">20:55 · LWT received</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(16,185,129,0.1);color:var(--accent)">
+            <i class="ph-bold ph-user"></i></div>
+          <div>
+            <div class="feed-text">User <strong>Amina (guest)</strong> logged in via mobile</div>
+            <div class="feed-time">20:11</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-ico" style="background:rgba(251,191,36,0.1);color:var(--yellow)">
+            <i class="ph-bold ph-clock"></i></div>
+          <div>
+            <div class="feed-text">Schedule <strong>Night Mode</strong> enabled</div>
+            <div class="feed-time">20:00 · daily trigger</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK SCENES -->
+    <div class="section-row">
+      <div class="section-title">Quick Scenes</div>
+      <div class="section-link">Manage scenes →</div>
+    </div>
+    <div class="scenes-row">
+      <button class="btn btn-green"><i class="ph-bold ph-sun"></i>Good Morning</button>
+      <button class="btn btn-ghost"><i class="ph-bold ph-film-strip"></i>Movie Mode</button>
+      <button class="btn btn-ghost"><i class="ph-bold ph-lock-simple"></i>Away</button>
+      <button class="btn btn-ghost"><i class="ph-bold ph-moon"></i>Night Mode</button>
+      <button class="btn btn-ghost"><i class="ph-bold ph-door-open"></i>Guest Welcome</button>
+    </div>
+
+  </div>
+</main>
+
+<div class="mockup-badge">
+  <strong>MOCKUP</strong> — Phosphor Icons · Zinc + Emerald
+</div>
+
+</body>
+</html>

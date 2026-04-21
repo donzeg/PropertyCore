@@ -19,7 +19,8 @@ type statusResponse struct {
 	DeviceCount   int    `json:"device_count"`
 	SceneCount    int    `json:"scene_count"`
 	RuleCount     int    `json:"rule_count"`
-	RoomCount     int    `json:"room_count"`
+	FloorCount    int    `json:"floor_count"`
+	AreaCount     int    `json:"area_count"`
 	UserCount     int    `json:"user_count"`
 	ScheduleCount int    `json:"schedule_count"`
 	WSClients     int    `json:"ws_clients"`
@@ -30,7 +31,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateManager, scenes *SceneManager, rules *RulesEngine, rooms *RoomManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateManager, scenes *SceneManager, rules *RulesEngine, floors *FloorManager, areas *AreaManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -42,7 +43,8 @@ func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateM
 			DeviceCount:   registry.Count(),
 			SceneCount:    scenes.Count(),
 			RuleCount:     rules.Count(),
-			RoomCount:     rooms.Count(),
+			FloorCount:    floors.Count(),
+			AreaCount:     areas.Count(),
 			UserCount:     users.Count(),
 			ScheduleCount: scheduler.Count(),
 			WSClients:     ws.ClientCount(),
@@ -62,7 +64,7 @@ func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateM
 //	GET    /api/v1/devices      → list all devices (registry + live state)
 //	POST   /api/v1/devices      → register a device manually
 //	GET    /api/v1/devices/{id} → get device (registry + live state)
-//	PATCH  /api/v1/devices/{id} → update device metadata (name, room_id, etc.)
+//	PATCH  /api/v1/devices/{id} → update device metadata (name, area_id, etc.)
 //	DELETE /api/v1/devices/{id} → unregister device
 func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.HandlerFunc {
 	// deviceResponse merges registry metadata with live state for the HTTP response.
@@ -70,7 +72,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.Hand
 		ID              string                 `json:"id"`
 		Name            string                 `json:"name"`
 		Type            string                 `json:"type"`
-		RoomID          string                 `json:"room_id,omitempty"`
+		AreaID          string                 `json:"area_id,omitempty"`
 		Vendor          string                 `json:"vendor,omitempty"`
 		FirmwareVersion string                 `json:"firmware_version,omitempty"`
 		Online          bool                   `json:"online"`
@@ -84,7 +86,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.Hand
 			ID:              d.ID,
 			Name:            d.Name,
 			Type:            d.Type,
-			RoomID:          d.RoomID,
+			AreaID:          d.AreaID,
 			Vendor:          d.Vendor,
 			FirmwareVersion: d.FirmwareVersion,
 			Online:          d.Online,
@@ -389,47 +391,47 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 	}
 }
 
-// makeRoomsHandler handles all room CRUD endpoints:
+// makeAreasHandler handles all area CRUD endpoints:
 //
-//	GET    /api/v1/rooms        → list all rooms
-//	POST   /api/v1/rooms        → create a room
-//	GET    /api/v1/rooms/{id}   → get a room
-//	PATCH  /api/v1/rooms/{id}   → update room (name, floor)
-//	DELETE /api/v1/rooms/{id}   → delete a room
-func makeRoomsHandler(rm *RoomManager) http.HandlerFunc {
+//	GET    /api/v1/areas        → list all areas
+//	POST   /api/v1/areas        → create an area
+//	GET    /api/v1/areas/{id}   → get an area
+//	PATCH  /api/v1/areas/{id}   → update area (name, floor_id, area_type, icon)
+//	DELETE /api/v1/areas/{id}   → delete an area
+func makeAreasHandler(am *AreaManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/rooms")
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/areas")
 		suffix = strings.Trim(suffix, "/")
 		w.Header().Set("Content-Type", "application/json")
 
 		if suffix == "" {
 			switch r.Method {
 			case http.MethodGet:
-				all := rm.GetAll()
+				all := am.GetAll()
 				if all == nil {
-					all = []*Room{}
+					all = []*Area{}
 				}
 				if err := json.NewEncoder(w).Encode(all); err != nil {
 					http.Error(w, "encode error", http.StatusInternalServerError)
 				}
 			case http.MethodPost:
-				var room Room
-				if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+				var area Area
+				if err := json.NewDecoder(r.Body).Decode(&area); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
 					return
 				}
-				if room.Name == "" {
+				if area.Name == "" {
 					w.WriteHeader(http.StatusBadRequest)
 					fmt.Fprint(w, `{"error":"name is required"}`)
 					return
 				}
-				if err := rm.Add(&room); err != nil {
-					http.Error(w, `{"error":"could not create room"}`, http.StatusInternalServerError)
+				if err := am.Add(&area); err != nil {
+					http.Error(w, `{"error":"could not create area"}`, http.StatusInternalServerError)
 					return
 				}
 				w.WriteHeader(http.StatusCreated)
-				if err := json.NewEncoder(w).Encode(&room); err != nil {
+				if err := json.NewEncoder(w).Encode(&area); err != nil {
 					http.Error(w, "encode error", http.StatusInternalServerError)
 				}
 			default:
@@ -441,38 +443,157 @@ func makeRoomsHandler(rm *RoomManager) http.HandlerFunc {
 		id := suffix
 		switch r.Method {
 		case http.MethodGet:
-			room, ok := rm.Get(id)
+			area, ok := am.Get(id)
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				fmt.Fprintf(w, `{"error":"area not found","id":%q}`, id)
 				return
 			}
-			if err := json.NewEncoder(w).Encode(room); err != nil {
+			if err := json.NewEncoder(w).Encode(area); err != nil {
 				http.Error(w, "encode error", http.StatusInternalServerError)
 			}
 		case http.MethodPatch:
-			var patch Room
+			var patch Area
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
 				return
 			}
-			if !rm.Update(id, &patch) {
+			if !am.Update(id, &patch) {
 				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				fmt.Fprintf(w, `{"error":"area not found","id":%q}`, id)
 				return
 			}
-			room, _ := rm.Get(id)
-			if err := json.NewEncoder(w).Encode(room); err != nil {
+			area, _ := am.Get(id)
+			if err := json.NewEncoder(w).Encode(area); err != nil {
 				http.Error(w, "encode error", http.StatusInternalServerError)
 			}
 		case http.MethodDelete:
-			if !rm.Delete(id) {
+			if !am.Delete(id) {
 				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprintf(w, `{"error":"room not found","id":%q}`, id)
+				fmt.Fprintf(w, `{"error":"area not found","id":%q}`, id)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeFloorsHandler handles all floor CRUD endpoints:
+//
+//	GET    /api/v1/floors        → list all floors
+//	POST   /api/v1/floors        → create a floor
+//	GET    /api/v1/floors/{id}   → get a floor
+//	PATCH  /api/v1/floors/{id}   → update floor (name, order)
+//	DELETE /api/v1/floors/{id}   → delete a floor
+func makeFloorsHandler(fm *FloorManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/floors")
+		suffix = strings.Trim(suffix, "/")
+		w.Header().Set("Content-Type", "application/json")
+
+		if suffix == "" {
+			switch r.Method {
+			case http.MethodGet:
+				all := fm.GetAll()
+				if all == nil {
+					all = []*Floor{}
+				}
+				if err := json.NewEncoder(w).Encode(all); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var floor Floor
+				if err := json.NewDecoder(r.Body).Decode(&floor); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					return
+				}
+				if floor.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"name is required"}`)
+					return
+				}
+				if err := fm.Add(&floor); err != nil {
+					http.Error(w, `{"error":"could not create floor"}`, http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(&floor); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		id := suffix
+		switch r.Method {
+		case http.MethodGet:
+			floor, ok := fm.Get(id)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"floor not found","id":%q}`, id)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(floor); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var patch Floor
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			if !fm.Update(id, &patch) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"floor not found","id":%q}`, id)
+				return
+			}
+			floor, _ := fm.Get(id)
+			if err := json.NewEncoder(w).Encode(floor); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodDelete:
+			if !fm.Delete(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"floor not found","id":%q}`, id)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makePropertyHandler handles the property singleton endpoints:
+//
+//	GET   /api/v1/property  → get current property details
+//	PATCH /api/v1/property  → update property (name, address, type, timezone)
+func makePropertyHandler(pm *PropertyManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if err := json.NewEncoder(w).Encode(pm.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var patch Property
+			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			pm.Update(&patch)
+			if err := json.NewEncoder(w).Encode(pm.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
 		default:
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
@@ -566,6 +687,77 @@ func makeUsersHandler(um *UserManager) http.HandlerFunc {
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeAuthHandler handles PIN-based authentication for the mobile app:
+//
+//	POST /api/v1/auth         → {"pin":"1234"} → {"token":"...","user":{...with room_ids}}
+//	POST /api/v1/auth/logout  → {"token":"..."} → 204 No Content
+//
+// On success the client receives a session token and the full user profile
+// (including role and room_ids). The mobile app uses role + room_ids to
+// decide which rooms and devices to display without a server round-trip.
+// Owner/admin receive room_ids=null which the app treats as "all rooms".
+func makeAuthHandler(um *UserManager, sm *SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/auth")
+		suffix = strings.Trim(suffix, "/")
+		w.Header().Set("Content-Type", "application/json")
+
+		if suffix == "logout" {
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			var body struct {
+				Token string `json:"token"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Token == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"token is required"}`)
+				return
+			}
+			sm.Invalidate(body.Token)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		// POST /api/v1/auth — PIN login
+		if suffix != "" {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			PIN string `json:"pin"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PIN == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"error":"pin is required"}`)
+			return
+		}
+		user, ok := um.FindByPIN(body.PIN)
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"invalid PIN"}`)
+			return
+		}
+		token, err := sm.NewSession(user.ID)
+		if err != nil {
+			http.Error(w, `{"error":"could not create session"}`, http.StatusInternalServerError)
+			return
+		}
+		type authResponse struct {
+			Token string      `json:"token"`
+			User  *userPublic `json:"user"`
+		}
+		if err := json.NewEncoder(w).Encode(authResponse{Token: token, User: toPublic(user)}); err != nil {
+			http.Error(w, "encode error", http.StatusInternalServerError)
 		}
 	}
 }

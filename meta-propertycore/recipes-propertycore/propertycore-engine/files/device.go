@@ -1,5 +1,5 @@
 // PropertyCore Engine — Device Registry
-// Persists device metadata (name, type, room assignment, etc.) to devices.json.
+// Persists device metadata (name, type, area assignment, etc.) to devices.json.
 // Live state (power, temperature, etc.) is still managed by StateManager (in-memory).
 // Devices are auto-registered on first MQTT message; can also be registered manually.
 package main
@@ -14,7 +14,7 @@ type DeviceInfo struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Type            string    `json:"type"`             // relay, ac_gateway, sensor, etc.
-	RoomID          string    `json:"room_id,omitempty"` // foreign key to Room
+	AreaID          string    `json:"area_id,omitempty"` // foreign key to Area
 	Vendor          string    `json:"vendor,omitempty"`
 	FirmwareVersion string    `json:"firmware_version,omitempty"`
 	Online          bool      `json:"online"`
@@ -129,8 +129,8 @@ func (dr *DeviceRegistry) Update(id string, patch *DeviceInfo) bool {
 	if patch.Type != "" {
 		d.Type = patch.Type
 	}
-	// RoomID can be intentionally cleared by sending ""
-	d.RoomID = patch.RoomID
+	// AreaID can be intentionally cleared by sending ""
+	d.AreaID = patch.AreaID
 	if patch.Vendor != "" {
 		d.Vendor = patch.Vendor
 	}

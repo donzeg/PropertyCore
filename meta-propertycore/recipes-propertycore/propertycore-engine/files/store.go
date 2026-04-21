@@ -96,20 +96,57 @@ func (s *Store) SaveRules(rules []*Rule) {
 	}
 }
 
-// LoadRooms returns all persisted rooms, or nil if none stored yet.
-func (s *Store) LoadRooms() []*Room {
-	var rooms []*Room
-	if err := s.loadJSON("rooms.json", &rooms); err != nil {
-		log.Printf("store: load rooms error: %v", err)
+// LoadAreas returns all persisted areas, or nil if none stored yet.
+func (s *Store) LoadAreas() []*Area {
+	var areas []*Area
+	if err := s.loadJSON("areas.json", &areas); err != nil {
+		log.Printf("store: load areas error: %v", err)
 		return nil
 	}
-	return rooms
+	return areas
 }
 
-// SaveRooms persists the full room list atomically.
-func (s *Store) SaveRooms(rooms []*Room) {
-	if err := s.saveJSON("rooms.json", rooms); err != nil {
-		log.Printf("store: save rooms error: %v", err)
+// SaveAreas persists the full area list atomically.
+func (s *Store) SaveAreas(areas []*Area) {
+	if err := s.saveJSON("areas.json", areas); err != nil {
+		log.Printf("store: save areas error: %v", err)
+	}
+}
+
+// LoadFloors returns all persisted floors, or nil if none stored yet.
+func (s *Store) LoadFloors() []*Floor {
+	var floors []*Floor
+	if err := s.loadJSON("floors.json", &floors); err != nil {
+		log.Printf("store: load floors error: %v", err)
+		return nil
+	}
+	return floors
+}
+
+// SaveFloors persists the full floor list atomically.
+func (s *Store) SaveFloors(floors []*Floor) {
+	if err := s.saveJSON("floors.json", floors); err != nil {
+		log.Printf("store: save floors error: %v", err)
+	}
+}
+
+// LoadProperty returns the persisted property singleton, or nil if not stored yet.
+func (s *Store) LoadProperty() *Property {
+	var p Property
+	if err := s.loadJSON("property.json", &p); err != nil {
+		log.Printf("store: load property error: %v", err)
+		return nil
+	}
+	if p.Name == "" {
+		return nil
+	}
+	return &p
+}
+
+// SaveProperty persists the property singleton atomically.
+func (s *Store) SaveProperty(p *Property) {
+	if err := s.saveJSON("property.json", p); err != nil {
+		log.Printf("store: save property error: %v", err)
 	}
 }
 

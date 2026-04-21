@@ -60,14 +60,17 @@ The OS image must:
 │   └── recipes-propertycore/
 │       └── propertycore-engine/     ← Go automation engine recipe
 │           ├── files/
-│           │   ├── main.go          ← Engine entry point — wires all components, v0.9.0
+│           │   ├── main.go          ← Engine entry point — wires all components, v0.11.0
 │           │   ├── state.go         ← StateManager — ephemeral in-memory device state
 │           │   ├── device.go        ← DeviceRegistry — persistent device metadata
 │           │   ├── mqtt.go          ← MQTTClient — subscribe/publish over Mosquitto
 │           │   ├── ws.go            ← WSHub — RFC 6455 WebSocket server
 │           │   ├── scene.go         ← SceneManager — CRUD + execute
 │           │   ├── rule.go          ← RulesEngine — if/then automation rules
-│           │   ├── room.go          ← RoomManager — room CRUD (also defines randomID())
+│           │   ├── area.go          ← AreaManager — area CRUD (also defines randomID())
+│           │   ├── floor.go         ← FloorManager — floor CRUD with display order
+│           │   ├── property.go      ← PropertyManager — property singleton (name, type, timezone)
+│           │   ├── auth.go          ← SessionManager — in-memory PIN-based token auth
 │           │   ├── user.go          ← UserManager — user CRUD with roles (owner/admin/guest)
 │           │   ├── scheduler.go     ← ScheduleManager — time-based scene triggers
 │           │   ├── store.go         ← Store — JSON persistence to /var/lib/propertycore/
@@ -75,8 +78,9 @@ The OS image must:
 │           │   ├── go.mod           ← module github.com/propertycore/propertycore-engine
 │           │   └── propertycore-engine.service  ← systemd unit (StateDirectory=propertycore)
 │           ├── propertycore-engine_0.1.bb  ← v0.1 recipe (archived)
-│           ├── ...                         ← v0.2 – v0.8 recipes (archived)
-│           └── propertycore-engine_0.9.bb  ← current active recipe
+│           ├── ...                         ← v0.2 – v0.9 recipes (archived)
+│           ├── propertycore-engine_0.10.bb ← v0.10 recipe (archived)
+│           └── propertycore-engine_0.11.bb ← current active recipe
 ├── dashboard/                       ← React config dashboard (engineer install tool)
 │   ├── package.json                 ← Vite + React + TypeScript + Tailwind CSS v3
 │   ├── vite.config.ts               ← base=/admin/, dev proxy → :8080
@@ -94,8 +98,9 @@ The OS image must:
 │       │   └── Modal.tsx            ← Reusable modal dialog
 │       └── pages/
 │           ├── Overview.tsx         ← Hub status + resource counts + live WebSocket
-│           ├── Rooms.tsx            ← Room CRUD (also exports shared primitives: Table, Field, etc.)
-│           ├── Devices.tsx          ← Device list, room assignment, live state preview
+│           ├── Floors.tsx           ← Floor CRUD
+│           ├── Areas.tsx            ← Area CRUD (also exports shared primitives: Table, Field, etc.)
+│           ├── Devices.tsx          ← Device list, area assignment, live state preview
 │           ├── Scenes.tsx           ← Scene CRUD + execute
 │           ├── Rules.tsx            ← Rules CRUD + enable/disable toggle
 │           ├── Schedules.tsx        ← Schedule CRUD + enable/disable toggle
@@ -112,6 +117,9 @@ The OS image must:
 │           ├── nvs_config.c/h       ← NVS: device_id, broker_ip, wifi creds
 │           ├── mqtt_pc.c/h          ← MQTT: publish state, receive cmd, LWT
 │           └── main.c               ← app_main: Wi-Fi → switches → MQTT
+├── mockups/                         ← Interactive HTML UI previews (served by python3 -m http.server 8888)
+│   ├── dashboard-mockup.html        ← Static dashboard preview (Zinc+Emerald, Phosphor Icons)
+│   └── mobile-app-mockup.html       ← Interactive mobile app preview (3 modes × 5 accent colours)
 ├── build/                           ← RPi5 BitBake build dir (gitignored)
 ├── build-qemu/                      ← QEMU BitBake build dir (gitignored)
 ├── downloads/                       ← Shared fetch cache (gitignored)
@@ -207,7 +215,7 @@ runqemu qemuarm64 nographic slirp
 
 ### Phase 2 — Go Automation Engine: COMPLETE ✅
 
-Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, and verified in QEMU.
+Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QEMU.
 
 | Version | Commit | Feature |
 |---|---|---|
@@ -220,6 +228,8 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 | v0.7 | `ddec9e5` | Rooms + Users CRUD API with JSON persistence |
 | v0.8 | `ac78845` | Scheduling engine — time-based scene triggers |
 | v0.9 | `96f557a` | Device registry — persistent metadata, auto-registration via MQTT |
+| v0.10 | — | PIN-based session auth (SessionManager, crypto/rand tokens, in-memory only) |
+| v0.11 | — | Room→Area rename, Floor entity, Property singleton; Yocto recipes 0.10+0.11 |
 
 **Engine API surface (all on `:8080`):**
 - `GET /health` — liveness probe
@@ -232,9 +242,14 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - `GET|POST /api/v1/rules` — rules engine CRUD
 - `GET|PATCH|DELETE /api/v1/rules/{id}` — single rule
 - `POST /api/v1/rules/{id}/enable|disable`
-- `GET|POST /api/v1/rooms` — room CRUD
-- `GET|PATCH|DELETE /api/v1/rooms/{id}` — single room
-- `GET|POST /api/v1/users` — user CRUD (roles: owner/admin/guest, PIN omitted from API)
+- `GET|POST /api/v1/areas` — area CRUD
+- `GET|PATCH|DELETE /api/v1/areas/{id}` — single area
+- `GET|POST /api/v1/floors` — floor CRUD
+- `GET|PATCH|DELETE /api/v1/floors/{id}` — single floor
+- `GET|PATCH /api/v1/property` — property singleton (name, type, timezone)
+- `POST /api/v1/auth/login` — PIN login → returns session token
+- `POST /api/v1/auth/logout` — invalidate token
+- `GET|POST /api/v1/users` — user CRUD (roles: owner/admin/guest, PIN omitted from GET response)
 - `GET|PATCH|DELETE /api/v1/users/{id}` — single user
 - `GET|POST /api/v1/schedules` — schedule CRUD
 - `GET|PATCH|DELETE /api/v1/schedules/{id}` — single schedule
@@ -242,18 +257,42 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - `GET /ws` — WebSocket endpoint (broadcasts device state changes)
 
 **Persistence** — JSON files in `/var/lib/propertycore/`:
-`scenes.json`, `rules.json`, `rooms.json`, `users.json`, `schedules.json`, `devices.json`
+`scenes.json`, `rules.json`, `areas.json`, `floors.json`, `property.json`, `users.json`, `schedules.json`, `devices.json`
 
 ### Phase 3 — UIs, Firmware & OS Hardening (current focus)
 - [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
 - [x] React config dashboard v0.1 — `dashboard/` (Vite + React + TypeScript + Tailwind)
 - [x] Yocto recipe — nginx + `propertycore-dashboard` recipe serves dashboard at `/admin`
 - [x] QEMU verified: nginx active, `/admin/` 200 OK, `/status` + `/health` proxied, engine MQTT connected (commit `89a6411`)
+- [x] UI mockups (HTML interactive previews) — `mockups/dashboard-mockup.html`, `mockups/mobile-app-mockup.html`
+- [x] Engine v0.10: PIN-based session auth (SessionManager, crypto/rand tokens)
+- [x] Engine v0.11: Room→Area rename, Floor entity, Property singleton; Yocto recipes updated
+- [x] Dashboard: Zinc+Emerald light/dark mode redesign — theme toggle in sidebar, persisted in localStorage (commit `4c39b3e`)
+- [ ] Commit engine v0.10/v0.11 + push to GitHub — **next**
 - [ ] Flutter mobile app (owner/guest control)
+- [ ] Rebuild QEMU image with v0.11 engine + dark mode dashboard
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
+
+**UI Mockups (`mockups/`):**
+- `dashboard-mockup.html` — Static HTML preview of config dashboard (Zinc + Emerald theme, Phosphor Icons).
+- `mobile-app-mockup.html` — Interactive HTML preview of Flutter mobile app. 3 phone frames: Home, Rooms, Appearance Settings. Fully interactive: 3 background modes (Dark / Light / Theme) × 5 accent colours (Emerald / Sapphire / Amber / Rose / Violet). Served by `python3 -m http.server 8888` from `mockups/`.
+- Approved design: Zinc + Emerald. Brand colour is **Emerald (`#10b981`)** — Nigerian market positioning.
+
+**Flutter Mobile App — Architecture (not yet built):**
+- **Dashboard = Configuration surface** (engineer/owner via browser). **Mobile app = Consumption surface** (owner/guests via phone).
+- The mobile app has **zero hardcoded UI**. Every screen is dynamically rendered from the engine API:
+  - Areas list → `GET /api/v1/areas`
+  - Devices per area → `GET /api/v1/devices` (filtered by area_id)
+  - Scenes → `GET /api/v1/scenes`
+  - Live device state → `GET /ws` WebSocket (engine pushes state changes)
+- Flow: engineer installs hardware → firmware auto-registers device via MQTT → engineer names + assigns device to room in dashboard → immediately visible in mobile app.
+- No YAML, no card builder. Engineer configures once; guests see the result. Cleaner than Home Assistant Lovelace.
+- Target: Android + iOS. Connects to `http://[hub-ip]/api/v1/` + `ws://[hub-ip]/ws`.
+- Theme: Zinc + Emerald liquid glass, matching mockup. 4 bottom tabs: Home, Rooms, Scenes, More.
+- Appearance settings screen (in More tab): Dark / Light / Theme mode × 5 accent colours — persisted locally on device.
 
 **Dashboard v0.1 (`dashboard/`):**
 - Vite 5 + React 18 + TypeScript + Tailwind CSS v3.
@@ -262,13 +301,17 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - Build: `npm run build` → `dist/` (static files for nginx or engine to serve).
 - Implements UI-SCOPE sections backed by current engine API:
   - Overview (§2): /status, WS live updates, resource counts
-  - Rooms (§4): CRUD with floor assignment
-  - Devices (§5): list, room assignment, online badge, live state preview
+  - Floors (§3): CRUD with display order
+  - Areas (§4): CRUD with floor assignment and type
+  - Devices (§5): list, area assignment, online badge, live state preview
   - Scenes (§13a): CRUD + execute button
   - Rules (§13b): CRUD + enable/disable toggle
   - Schedules (§13c): CRUD + enable/disable toggle
   - Users (§21): CRUD (owner/admin/guest, PIN)
-  - All other §(1, 6–12, 14–20, 22–35) show as "Coming soon" stubs in sidebar.
+  - All other sections show as "Coming soon" stubs in sidebar.
+- **Dark mode:** `darkMode: 'class'` in tailwind.config.cjs. `ThemeContext` + `useTheme()` exported from `App.tsx`. Toggle button in sidebar footer. Theme persisted as `'pc-theme'` in `localStorage`. OS preference respected on first load.
+- **CSS utilities in `index.css`:** `.btn-primary` (Emerald), `.btn-ghost` (zinc), `.input` (full dark-aware), `.card` (white/zinc-900 with border).
+- **Brand color:** `brand` in tailwind config = Emerald (`#10b981`). Use `bg-brand`, `text-brand`, `dark:text-brand-400`, `ring-brand-400` etc.
 
 **Firmware — ESP32 relay (`firmware/pc-rly-wifi/`):**
 - ESP-IDF v5.x + FreeRTOS. Pure C, zero external deps beyond ESP-IDF.
@@ -294,13 +337,15 @@ Engine reached v0.9.0 (commit `96f557a`). All components built, Yocto-packaged, 
 - **Go build in recipes** — always set `GOPROXY=off GOFLAGS="-mod=mod"`. The go-native binary path: `build-qemu/tmp/sysroots-components/x86_64/go-binary-native/usr/bin/go` (Go 1.22.12).
 - **Pure stdlib only** — the engine uses zero external Go dependencies (`CGO_ENABLED=0`). Never add third-party imports.
 - **BusyBox wget in QEMU** — no `--method=PATCH/DELETE`, no `python3` on image. Use `nc` for raw DELETE. Use hardcoded IDs in verification scripts.
-- **`randomID()` not `newID()`** — ID generator is defined in `room.go` as `randomID()`. All managers call this function. Do not rename it.
+- **`randomID()` not `newID()`** — ID generator is defined in `area.go` as `randomID()`. All managers call this function. Do not rename it.
 - **Mutex + persist deadlock** — in `DeviceRegistry` (and any future manager), always release the write mutex BEFORE calling `persist()`. The `persist()` method calls `GetAll()` which takes an `RLock` — holding the write lock first will deadlock.
 - **Atomic JSON writes** — `store.go` writes to a temp file then renames. Never write JSON directly to the target file.
 - **QEMU restart race** — `systemctl restart && wget` will fail (connection refused). Always send restart and the subsequent request as separate SSH commands.
 - **MQTT topic pattern** — devices publish to `propertycore/devices/{id}/state`. The engine subscribes to `propertycore/devices/+/state`. The engine publishes commands to `propertycore/devices/{id}/cmd`.
 - **nginx PID path** — the upstream nginx systemd unit uses `PIDFile=/run/nginx/nginx.pid`. Our `nginx.conf` must use `pid /run/nginx/nginx.pid;` (not `/run/nginx.pid`). Add `RuntimeDirectory=nginx` via a systemd drop-in at `nginx.service.d/override.conf` so `/run/nginx/` exists before nginx starts. Declare `FILES:${PN} += "${systemd_system_unitdir}/nginx.service.d"` to avoid QA packaging errors.
 - **QEMU background launch** — always use `runqemu qemuarm64 nographic slirp < /dev/null > /tmp/qemu.log 2>&1 &`. Without `< /dev/null`, the process gets `SIGTTIN` (stopped state `Tl`) when backgrounded because `-serial mon:stdio` tries to read stdin.
+- **Local host dev (engine)** — build for amd64: `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=off GOFLAGS=-mod=mod GOCACHE=/tmp/go-cache HOME=/tmp $GO build -o /tmp/propertycore-engine .` (where `$GO` = Yocto's go-binary-native). Requires `/var/lib/propertycore/` owned by current user: `sudo mkdir -p /var/lib/propertycore && sudo chown $USER /var/lib/propertycore`. Mosquitto must be running on host: `sudo apt install mosquitto`.
+- **`area_id` not `room_id`** — the device metadata field was renamed from `room_id` to `area_id` in v0.11. All API payloads and engine structs use `area_id`.
 
 ---
 
