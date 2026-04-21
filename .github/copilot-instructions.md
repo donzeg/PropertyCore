@@ -280,7 +280,7 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - [x] Flutter mobile app v0.1 — `mobile/` (Flutter 3.41.7, Dart 3.11.5, `flutter analyze` clean, commit `d5029e6`)
 - [x] pm2 process manager — engine + dashboard running persistently on ThinkPad; auto-starts on boot via `pm2-syeed` systemd service
 - [x] InfluxDB recipe + time-series data pipeline — `influx.go` in engine, `meta-propertycore/recipes-propertycore/influxdb/` Yocto recipe (commit `d9ab7d7`)
-- [ ] Read-only rootfs + overlay
+- [x] Read-only rootfs + persistent data layer — `IMAGE_FEATURES+=read-only-rootfs`, `propertycore-persist` recipe, bind-mounts `/var/lib/propertycore` + `/var/lib/influxdb` from data partition (commit `177ff60`)
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
 
@@ -365,6 +365,8 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - **Flutter `unawaited()`** — requires `import 'dart:async';`. Alternatively use `.ignore()` (Dart 3 API, no import needed).
 - **Flutter path on this machine** — `~/flutter/bin/flutter` (extracted to `/home/syeed/flutter/`). Flutter 3.41.7 / Dart 3.11.5.
 - **`flutter create` on existing dir** — `flutter create --project-name name --org com.org .` inside an existing dir generates platform scaffolding without overwriting `lib/` files. Run this once after writing Dart sources, then `flutter pub get`.
+- **Read-only rootfs design** — `IMAGE_FEATURES+=read-only-rootfs` makes the rootfs immutable at build time. Writable data lives on a separate ext4 data partition mounted at `/data`. The `propertycore-persist` recipe provides `propertycore-data-init.service` — an early-boot oneshot that: (1) mounts the data partition (`/dev/nvme0n1p3` → `/dev/mmcblk0p3` → fallback tmpfs), (2) bind-mounts `/data/propertycore` over `/var/lib/propertycore`, (3) bind-mounts `/data/influxdb` over `/var/lib/influxdb`. In QEMU there is no data partition so tmpfs is used (data is volatile). Engine and influxdb systemd units `Requires=propertycore-data-init.service`.
+- **InfluxDB arm64 SHA256** — correct verified hash: `a6e10c02d02db1a34cf662672004c0e42d6021a33cd16666b69d205736ee7f3c` (influxdb-1.8.10_linux_arm64.tar.gz). The recipe was initially created with a wrong hash because the download was cancelled at 36%.
 
 ---
 
