@@ -17,7 +17,7 @@ SRC_URI = " \
     file://influxdb-init.service \
 "
 
-SRC_URI[influxdb.sha256sum] = "6f12dd81e5a5bed5b4fca2f43e5e5f1a38f4f7c0dafdad5f3cac77e68fc7fc23"
+SRC_URI[influxdb.sha256sum] = "a6e10c02d02db1a34cf662672004c0e42d6021a33cd16666b69d205736ee7f3c"
 
 S = "${WORKDIR}/influxdb-1.8.10-1"
 

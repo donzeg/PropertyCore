@@ -230,6 +230,7 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 | v0.9 | `96f557a` | Device registry — persistent metadata, auto-registration via MQTT |
 | v0.10 | — | PIN-based session auth (SessionManager, crypto/rand tokens, in-memory only) |
 | v0.11 | — | Room→Area rename, Floor entity, Property singleton; Yocto recipes 0.10+0.11 |
+| v0.12 | `d9ab7d7` | InfluxDB time-series pipeline — `influx.go` writes `device_state` measurements on every MQTT state event |
 
 **Engine API surface (all on `:8080`):**
 - `GET /health` — liveness probe
@@ -259,6 +260,12 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 **Persistence** — JSON files in `/var/lib/propertycore/`:
 `scenes.json`, `rules.json`, `areas.json`, `floors.json`, `property.json`, `users.json`, `schedules.json`, `devices.json`
 
+**Time-series** — InfluxDB 1.8 on `:8086`, database `propertycore`, retention 90 days.
+The engine writes a `device_state` measurement on every MQTT state update.
+Tags: `device_id`, `device_type`. Fields: all numeric/bool/string keys from the device state payload.
+Query example: `SELECT * FROM device_state WHERE device_id='abc123' AND time > now() - 1h`
+Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `INFLUXDB_DB` (default `propertycore`).
+
 ### Phase 3 — UIs, Firmware & OS Hardening (current focus)
 - [x] ESP32 relay firmware — `firmware/pc-rly-wifi/` (PC-RLY-1/2/4/6CH-W)
 - [x] React config dashboard v0.1 — `dashboard/` (Vite + React + TypeScript + Tailwind)
@@ -272,7 +279,7 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - [x] QEMU rebuilt and verified: engine v0.11.0, all new endpoints (`/api/v1/areas`, `/api/v1/floors`, `/api/v1/property`, auth), nginx `/admin/` 200 OK
 - [x] Flutter mobile app v0.1 — `mobile/` (Flutter 3.41.7, Dart 3.11.5, `flutter analyze` clean, commit `d5029e6`)
 - [x] pm2 process manager — engine + dashboard running persistently on ThinkPad; auto-starts on boot via `pm2-syeed` systemd service
-- [ ] InfluxDB recipe + time-series data pipeline — **next**
+- [x] InfluxDB recipe + time-series data pipeline — `influx.go` in engine, `meta-propertycore/recipes-propertycore/influxdb/` Yocto recipe (commit `d9ab7d7`)
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware

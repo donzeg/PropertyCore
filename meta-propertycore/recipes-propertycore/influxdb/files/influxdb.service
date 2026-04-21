@@ -1,7 +1,8 @@
 [Unit]
 Description=InfluxDB time-series database
 Documentation=https://docs.influxdata.com/influxdb/
-After=network.target
+After=network.target propertycore-data-init.service
+Requires=propertycore-data-init.service
 
 [Service]
 User=influxdb

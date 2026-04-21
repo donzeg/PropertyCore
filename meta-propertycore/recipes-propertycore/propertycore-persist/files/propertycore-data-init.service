@@ -1,0 +1,17 @@
+[Unit]
+Description=PropertyCore Persistent Data Mounts
+Documentation=https://github.com/donzeg/PropertyCore
+# Run as early as possible — no default systemd ordering deps.
+DefaultDependencies=no
+# rootfs has been (re)mounted ro, /proc and /sys are available
+After=systemd-remount-fs.service
+# Must be done before anything that writes to /var/lib/propertycore or /var/lib/influxdb
+Before=propertycore-engine.service influxdb.service influxdb-init.service local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/propertycore/data-init.sh
+
+[Install]
+WantedBy=local-fs.target

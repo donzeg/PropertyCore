@@ -7,9 +7,12 @@ PropertyCore platform services."
 inherit core-image
 
 # Start from the minimal image feature set
+# read-only-rootfs: sets rootfs to ro at build time. Writable data lives on
+# the data partition (/data) and is bind-mounted at boot by propertycore-persist.
 IMAGE_FEATURES += " \
     ssh-server-openssh \
     package-management \
+    read-only-rootfs \
 "
 
 # Core packages always present on every PropertyCore hub
@@ -30,6 +33,8 @@ IMAGE_INSTALL = " \
     propertycore-engine \
     \
     influxdb \
+    \
+    propertycore-persist \
     \
     i2c-tools \
     \

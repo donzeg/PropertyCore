@@ -1,8 +1,9 @@
 [Unit]
 Description=PropertyCore Automation Engine
 Documentation=https://github.com/donzeg/PropertyCore
-After=network.target mosquitto.service
+After=network.target mosquitto.service propertycore-data-init.service
 Wants=mosquitto.service
+Requires=propertycore-data-init.service
 
 [Service]
 Type=simple
