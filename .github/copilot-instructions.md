@@ -270,8 +270,8 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - [x] Dashboard: Zinc+Emerald light/dark mode redesign — theme toggle in sidebar, persisted in localStorage (commit `4c39b3e`)
 - [x] Engine v0.10/v0.11 + dark mode dashboard committed (commit `0f0d43e`, `90b4b80`)
 - [x] QEMU rebuilt and verified: engine v0.11.0, all new endpoints (`/api/v1/areas`, `/api/v1/floors`, `/api/v1/property`, auth), nginx `/admin/` 200 OK
-- [ ] Flutter mobile app (owner/guest control) — **next**
-- [ ] InfluxDB recipe + time-series data pipeline
+- [x] Flutter mobile app v0.1 — `mobile/` (Flutter 3.41.7, Dart 3.11.5, `flutter analyze` clean, commit `d5029e6`)
+- [ ] InfluxDB recipe + time-series data pipeline — **next**
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
@@ -281,18 +281,23 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - `mobile-app-mockup.html` — Interactive HTML preview of Flutter mobile app. 3 phone frames: Home, Rooms, Appearance Settings. Fully interactive: 3 background modes (Dark / Light / Theme) × 5 accent colours (Emerald / Sapphire / Amber / Rose / Violet). Served by `python3 -m http.server 8888` from `mockups/`.
 - Approved design: Zinc + Emerald. Brand colour is **Emerald (`#10b981`)** — Nigerian market positioning.
 
-**Flutter Mobile App — Architecture (not yet built):**
+**Flutter Mobile App v0.1 (`mobile/`):**
+- Flutter 3.41.7 + Dart 3.11.5. `flutter analyze`: No issues found.
 - **Dashboard = Configuration surface** (engineer/owner via browser). **Mobile app = Consumption surface** (owner/guests via phone).
-- The mobile app has **zero hardcoded UI**. Every screen is dynamically rendered from the engine API:
-  - Areas list → `GET /api/v1/areas`
-  - Devices per area → `GET /api/v1/devices` (filtered by area_id)
-  - Scenes → `GET /api/v1/scenes`
-  - Live device state → `GET /ws` WebSocket (engine pushes state changes)
-- Flow: engineer installs hardware → firmware auto-registers device via MQTT → engineer names + assigns device to room in dashboard → immediately visible in mobile app.
-- No YAML, no card builder. Engineer configures once; guests see the result. Cleaner than Home Assistant Lovelace.
+- **Zero hardcoded UI** — every screen dynamically rendered from engine API:
+  - Areas list → `GET /api/v1/areas`; Devices per area → `GET /api/v1/devices` (filter by area_id)
+  - Scenes → `GET /api/v1/scenes`; Live state → `GET /ws` WebSocket
+- Flow: engineer configures in dashboard → immediately visible in mobile app. No YAML, no card builder.
 - Target: Android + iOS. Connects to `http://[hub-ip]/api/v1/` + `ws://[hub-ip]/ws`.
-- Theme: Zinc + Emerald liquid glass, matching mockup. 4 bottom tabs: Home, Rooms, Scenes, More.
-- Appearance settings screen (in More tab): Dark / Light / Theme mode × 5 accent colours — persisted locally on device.
+- **Dependencies:** `http ^1.2.1`, `web_socket_channel ^3.0.1`, `provider ^6.1.2`, `shared_preferences ^2.3.3`
+- **State:** Single `AppState` ChangeNotifier. Persists: hub_ip, token, user_id, user_name, app_mode, accent via `SharedPreferences`.
+- **Theme:** `AppMode` (dark/light/theme) × `AccentColor` (emerald/sapphire/amber/rose/violet). `PCColors` derives all surface/text colors. `BlobBackground` animated blobs in theme mode.
+- **Screens:** ConnectScreen → LoginScreen (user list + PIN pad) → MainNav (4-tab IndexedStack).
+- **Tabs:** Home (greeting + quick scenes + area chips + device tiles), Rooms (floor tabs + area list → RoomDetail), Scenes (execute), More (appearance + hub info + sign out).
+- **Widgets:** `GlassBox` (BackdropFilter), `BlobBackground` (CustomPainter animated), `DeviceTile` (animated toggle), `areaIcon()`/`deviceIcon()` helpers.
+- **Build:** `cd mobile && ~/flutter/bin/flutter pub get && ~/flutter/bin/flutter build apk --release`
+- `AppMode.theme` (index=2) is default; `AccentColor.emerald` (index=0) is default.
+- Use `.withValues(alpha:)` NOT `.withOpacity()` (Flutter 3.x API).
 
 **Dashboard v0.1 (`dashboard/`):**
 - Vite 5 + React 18 + TypeScript + Tailwind CSS v3.
@@ -346,6 +351,11 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - **QEMU background launch** — always use `runqemu qemuarm64 nographic slirp < /dev/null > /tmp/qemu.log 2>&1 &`. Without `< /dev/null`, the process gets `SIGTTIN` (stopped state `Tl`) when backgrounded because `-serial mon:stdio` tries to read stdin.
 - **Local host dev (engine)** — build for amd64: `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=off GOFLAGS=-mod=mod GOCACHE=/tmp/go-cache HOME=/tmp $GO build -o /tmp/propertycore-engine .` (where `$GO` = Yocto's go-binary-native). Requires `/var/lib/propertycore/` owned by current user: `sudo mkdir -p /var/lib/propertycore && sudo chown $USER /var/lib/propertycore`. Mosquitto must be running on host: `sudo apt install mosquitto`.
 - **`area_id` not `room_id`** — the device metadata field was renamed from `room_id` to `area_id` in v0.11. All API payloads and engine structs use `area_id`.
+- **Flutter `late` fields** — class fields initialized in a constructor body (not inline) must be declared `late`. Analyzer error `not_initialized_non_nullable_instance_field` means you need `late AppMode _appMode;` not `AppMode _appMode;`.
+- **Flutter `.withValues(alpha:)` not `.withOpacity()`** — `.withOpacity()` is deprecated in Flutter 3.x. Always use `.withValues(alpha: 0.5)`.
+- **Flutter `unawaited()`** — requires `import 'dart:async';`. Alternatively use `.ignore()` (Dart 3 API, no import needed).
+- **Flutter path on this machine** — `~/flutter/bin/flutter` (extracted to `/home/syeed/flutter/`). Flutter 3.41.7 / Dart 3.11.5.
+- **`flutter create` on existing dir** — `flutter create --project-name name --org com.org .` inside an existing dir generates platform scaffolding without overwriting `lib/` files. Run this once after writing Dart sources, then `flutter pub get`.
 
 ---
 
