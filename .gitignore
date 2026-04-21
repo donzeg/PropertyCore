@@ -6,3 +6,4 @@ sstate-cache/
 poky/
 meta-openembedded/
 meta-raspberrypi/
+meta-propertycore/recipes-propertycore/propertycore-engine/files/propertycore-engine

@@ -17,7 +17,7 @@ SRC_URI = " \
     file://scene.go \
     file://rule.go \
     file://store.go \
-    file://room.go \
+    file://area.go \
     file://user.go \
     file://scheduler.go \
     file://auth.go \
@@ -49,7 +49,7 @@ do_configure() {
     cp ${WORKDIR}/scene.go     ${S}/
     cp ${WORKDIR}/rule.go      ${S}/
     cp ${WORKDIR}/store.go     ${S}/
-    cp ${WORKDIR}/room.go      ${S}/
+    cp ${WORKDIR}/area.go      ${S}/
     cp ${WORKDIR}/user.go      ${S}/
     cp ${WORKDIR}/scheduler.go ${S}/
     cp ${WORKDIR}/auth.go      ${S}/
