@@ -56,8 +56,9 @@ class ApiClient {
   // ── Auth ─────────────────────────────────────────────────────────────────
 
   Future<String> login(String userId, String pin) async {
+    // Engine matches by PIN only — no user_id in request body
     final data =
-        await _post('/api/v1/auth/login', {'user_id': userId, 'pin': pin})
+        await _post('/api/v1/auth', {'pin': pin})
             as Map<String, dynamic>;
     return data['token'] as String;
   }
