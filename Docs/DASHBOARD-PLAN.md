@@ -127,7 +127,7 @@ The sidebar is the visual identity of the dashboard. It must be rebuilt before a
 
 ---
 
-### Phase 1 — Sidebar Redesign + Login Screen
+### Phase 1 — Sidebar Redesign + Login Screen ✅ Complete
 
 **Goal:** The dashboard looks and feels like the mockup. Foundation for all future pages.
 
@@ -607,7 +607,7 @@ Build these first — they underpin every page:
 
 | Phase | Section | Key Deliverable | Status |
 |---|---|---|---|
-| 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ⬜ Not started |
+| 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ✅ Complete |
 | 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ⬜ Not started |
 | 3 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
 | 4 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |

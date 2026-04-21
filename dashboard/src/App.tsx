@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
+import Login from './pages/Login'
 import Overview from './pages/Overview'
 import Floors from './pages/Floors'
 import Areas from './pages/Areas'
@@ -9,6 +10,7 @@ import Scenes from './pages/Scenes'
 import Rules from './pages/Rules'
 import Schedules from './pages/Schedules'
 import Users from './pages/Users'
+import PropertyPage from './pages/Property'
 
 // ─── Theme context ────────────────────────────────────────────────────────────
 
@@ -44,6 +46,17 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ─── Auth guard ───────────────────────────────────────────────────────────────
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const location = useLocation()
+  const token = localStorage.getItem('pc-token')
+  if (!token) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+  return <>{children}</>
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -51,9 +64,18 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter basename="/admin" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
-          <Route path="/" element={<Layout />}>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <Layout />
+              </RequireAuth>
+            }
+          >
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview"  element={<Overview />} />
+            <Route path="property"  element={<PropertyPage />} />
             <Route path="floors"    element={<Floors />} />
             <Route path="areas"     element={<Areas />} />
             <Route path="devices"   element={<Devices />} />

@@ -17,10 +17,21 @@ import type {
 // returns undefined for empty responses (204 or empty body).
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('pc-token')
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
     ...init,
   })
+  if (res.status === 401) {
+    localStorage.removeItem('pc-token')
+    localStorage.removeItem('pc-user-id')
+    window.location.href = '/admin/login'
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText)
     throw new Error(`HTTP ${res.status}: ${msg}`)
@@ -167,6 +178,24 @@ export const createUser = (body: {
 
 export const deleteUser = (id: string): Promise<void> =>
   req<void>(`/api/v1/users/${id}`, { method: 'DELETE' })
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export async function logout(): Promise<void> {
+  const token = localStorage.getItem('pc-token')
+  try {
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+  } catch {
+    // ignore — clear local state regardless
+  } finally {
+    localStorage.removeItem('pc-token')
+    localStorage.removeItem('pc-user-id')
+  }
+}
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 // The engine's /ws endpoint broadcasts device state updates to all connected clients.
