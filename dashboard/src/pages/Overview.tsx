@@ -45,7 +45,8 @@ export default function Overview() {
         { label: 'Devices',   value: status.device_count },
         { label: 'Scenes',    value: status.scene_count },
         { label: 'Rules',     value: status.rule_count },
-        { label: 'Rooms',     value: status.room_count },
+        { label: 'Floors',    value: status.floor_count },
+        { label: 'Areas',     value: status.area_count },
         { label: 'Users',     value: status.user_count },
         { label: 'Schedules', value: status.schedule_count },
       ]
@@ -53,7 +54,7 @@ export default function Overview() {
 
   return (
     <div className="p-8 max-w-4xl">
-      <h1 className="text-lg font-semibold text-slate-800 mb-6">System Overview</h1>
+      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-6">System Overview</h1>
 
       {/* Hub status strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -72,23 +73,23 @@ export default function Overview() {
       </div>
 
       {/* Resource counts */}
-      <h2 className="text-xs font-medium text-slate-500 uppercase tracking-widest mb-3">
+      <h2 className="text-xs font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3">
         Resources
       </h2>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-8">
+      <div className="grid grid-cols-3 sm:grid-cols-7 gap-3 mb-8">
         {counts.map(({ label, value }) => (
           <div
             key={label}
-            className="bg-white rounded-lg border border-slate-200 px-4 py-4 text-center"
+            className="card px-4 py-4 text-center"
           >
-            <div className="text-2xl font-bold text-slate-800">{value}</div>
-            <div className="text-xs text-slate-500 mt-1">{label}</div>
+            <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</div>
+            <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{label}</div>
           </div>
         ))}
       </div>
 
       {status && (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           {status.hostname} &middot; Broker: {status.mqtt_broker} &middot;{' '}
           {status.ws_clients} WebSocket client{status.ws_clients !== 1 ? 's' : ''}
         </p>
@@ -107,14 +108,14 @@ function StatCard({
   dot?: 'green' | 'red' | 'yellow'
 }) {
   const dotClass = dot
-    ? { green: 'bg-green-400', red: 'bg-red-400', yellow: 'bg-yellow-400' }[dot]
+    ? { green: 'bg-brand', red: 'bg-red-400', yellow: 'bg-yellow-400' }[dot]
     : ''
   return (
-    <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
+    <div className="card px-4 py-3">
+      <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">{label}</div>
       <div className="flex items-center gap-1.5">
         {dot && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} />}
-        <span className="text-sm font-medium text-slate-800 truncate">{value}</span>
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{value}</span>
       </div>
     </div>
   )

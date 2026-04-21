@@ -8,7 +8,7 @@ import {
   getScenes,
 } from '../api'
 import Modal from '../components/Modal'
-import { Actions, Empty, Field, ModalFooter, Table } from './Rooms'
+import { Actions, Empty, Field, ModalFooter, Table } from './Areas'
 import type { Rule, Scene } from '../types'
 
 const OPERATORS = [
@@ -93,24 +93,24 @@ export default function Rules() {
   return (
     <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-slate-800">Rules</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Rules</h1>
         <button onClick={openAdd} className="btn-primary">New Rule</button>
       </div>
 
       {loading ? (
-        <p className="text-slate-400 text-sm">Loading…</p>
+        <p className="text-zinc-400 text-sm">Loading…</p>
       ) : rules.length === 0 ? (
         <Empty message="No rules yet. Rules trigger a scene automatically when a device state condition is met." />
       ) : (
         <Table
           head={['Label', 'IF condition', '→ Scene', 'On', '']}
           rows={rules.map((r) => [
-            <span className="font-medium text-slate-800">{r.label}</span>,
-            <span className="text-xs text-slate-600">
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">{r.label}</span>,
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">
               {r.condition.device_id} · <code>{r.condition.field}</code>{' '}
               {r.condition.operator} {String(r.condition.value)}
             </span>,
-            <span className="text-slate-600">{sceneName(r.action.scene_id)}</span>,
+            <span className="text-zinc-600 dark:text-zinc-400">{sceneName(r.action.scene_id)}</span>,
             <ToggleBadge enabled={r.enabled} onClick={() => toggle(r)} />,
             <Actions onDelete={() => handleDelete(r.id)} />,
           ])}
@@ -127,35 +127,39 @@ export default function Rules() {
               placeholder="e.g. All Lights Off on Lock"
             />
 
-            <div className="border border-slate-200 rounded p-3 space-y-2">
-              <p className="text-xs font-semibold text-slate-600">IF — condition</p>
+            <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 space-y-3 bg-zinc-50 dark:bg-zinc-800/50">
+              <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">IF — condition</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Device ID *</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Device ID *</label>
                   <input
                     type="text"
                     value={form.device_id}
                     onChange={(e) => setForm((f) => ({ ...f, device_id: e.target.value }))}
-                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full border border-zinc-300 dark:border-zinc-600 rounded-md px-2 py-1.5 text-xs
+                               bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100
+                               focus:outline-none focus:ring-1 focus:ring-brand-400"
                     placeholder="relay-01"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Field</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Field</label>
                   <input
                     type="text"
                     value={form.field}
                     onChange={(e) => setForm((f) => ({ ...f, field: e.target.value }))}
-                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full border border-zinc-300 dark:border-zinc-600 rounded-md px-2 py-1.5 text-xs
+                               bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100
+                               focus:outline-none focus:ring-1 focus:ring-brand-400"
                     placeholder="power"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Operator</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Operator</label>
                   <select
                     value={form.operator}
                     onChange={(e) => setForm((f) => ({ ...f, operator: e.target.value }))}
-                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="input text-xs py-1.5"
                   >
                     {OPERATORS.map((op) => (
                       <option key={op.value} value={op.value}>{op.label}</option>
@@ -163,12 +167,14 @@ export default function Rules() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Value</label>
+                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Value</label>
                   <input
                     type="text"
                     value={form.value}
                     onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full border border-zinc-300 dark:border-zinc-600 rounded-md px-2 py-1.5 text-xs
+                               bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100
+                               focus:outline-none focus:ring-1 focus:ring-brand-400"
                     placeholder="true"
                   />
                 </div>
@@ -176,11 +182,11 @@ export default function Rules() {
             </div>
 
             <div>
-              <label className="block text-xs text-slate-600 mb-1">THEN → execute scene *</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">THEN → execute scene *</label>
               <select
                 value={form.scene_id}
                 onChange={(e) => setForm((f) => ({ ...f, scene_id: e.target.value }))}
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
               >
                 <option value="">— Select scene —</option>
                 {scenes.map((s) => (
@@ -198,12 +204,15 @@ export default function Rules() {
   )
 }
 
+// ToggleBadge is only used in Rules — copy for local use
 function ToggleBadge({ enabled, onClick }: { enabled: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-        enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+      className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${
+        enabled
+          ? 'bg-brand/10 text-brand dark:bg-brand/15 dark:text-brand-400'
+          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
       }`}
     >
       {enabled ? 'On' : 'Off'}

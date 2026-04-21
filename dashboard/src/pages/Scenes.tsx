@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createScene, deleteScene, executeScene, getScenes } from '../api'
 import Modal from '../components/Modal'
-import { Actions, Empty, ModalFooter, Table } from './Rooms'
+import { Actions, Empty, ModalFooter, Table } from './Areas'
 import type { Scene, SceneAction } from '../types'
 
 interface ActionDraft {
@@ -78,12 +78,12 @@ export default function Scenes() {
   return (
     <div className="p-8 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-slate-800">Scenes</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Scenes</h1>
         <button onClick={openAdd} className="btn-primary">New Scene</button>
       </div>
 
       {loading ? (
-        <p className="text-slate-400 text-sm">Loading…</p>
+        <p className="text-zinc-400 text-sm">Loading…</p>
       ) : scenes.length === 0 ? (
         <Empty message="No scenes yet. Create a scene to group device actions together." />
       ) : (
@@ -91,10 +91,10 @@ export default function Scenes() {
           head={['Name', 'Actions', '']}
           rows={scenes.map((s) => [
             <span>
-              <span className="font-medium text-slate-800 block">{s.name}</span>
-              <code className="text-xs text-slate-400">{s.id}</code>
+              <span className="font-medium text-zinc-900 dark:text-zinc-100 block">{s.name}</span>
+              <code className="text-xs text-zinc-400 dark:text-zinc-500">{s.id}</code>
             </span>,
-            <span className="text-slate-600 text-sm">
+            <span className="text-zinc-600 dark:text-zinc-400 text-sm">
               {s.actions?.length ?? 0} action{s.actions?.length !== 1 ? 's' : ''}
             </span>,
             <Actions
@@ -109,32 +109,34 @@ export default function Scenes() {
         <Modal title="New Scene" onClose={() => setAdding(false)}>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-slate-600 mb-1">Scene Name *</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">Scene Name *</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Good Night"
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-slate-600 mb-2">Actions</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2">Actions</label>
               <div className="space-y-2">
                 {actions.map((a, i) => (
-                  <div key={i} className="border border-slate-200 rounded p-2 space-y-1.5 bg-slate-50">
+                  <div key={i} className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 space-y-2 bg-zinc-50 dark:bg-zinc-800/50">
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         placeholder="Device ID  (e.g. relay-01)"
                         value={a.device_id}
                         onChange={(e) => updateAction(i, 'device_id', e.target.value)}
-                        className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 border border-zinc-300 dark:border-zinc-600 rounded-md px-2 py-1.5 text-xs
+                                   bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100
+                                   focus:outline-none focus:ring-1 focus:ring-brand-400"
                       />
                       <button
                         onClick={() => removeAction(i)}
-                        className="text-slate-400 hover:text-red-500 text-sm"
+                        className="text-zinc-400 hover:text-red-500 text-sm transition-colors"
                       >
                         ✕
                       </button>
@@ -144,14 +146,16 @@ export default function Scenes() {
                       placeholder={'{ "ch1": true }'}
                       value={a.payload}
                       onChange={(e) => updateAction(i, 'payload', e.target.value)}
-                      className="w-full border border-slate-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                      className="w-full border border-zinc-300 dark:border-zinc-600 rounded-md px-2 py-1 text-xs font-mono
+                                 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100
+                                 focus:outline-none focus:ring-1 focus:ring-brand-400 resize-none"
                     />
                   </div>
                 ))}
               </div>
               <button
                 onClick={addAction}
-                className="mt-1.5 text-xs text-blue-600 hover:underline"
+                className="mt-1.5 text-xs text-brand dark:text-brand-400 hover:underline font-medium"
               >
                 + Add action
               </button>

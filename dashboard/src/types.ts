@@ -9,19 +9,43 @@ export interface HubStatus {
   device_count: number
   scene_count: number
   rule_count: number
-  room_count: number
+  floor_count: number
+  area_count: number
   user_count: number
   schedule_count: number
   ws_clients: number
 }
 
-// ─── Room ─────────────────────────────────────────────────────────────────────
+// ─── Floor ─────────────────────────────────────────────────────────────────────────────────
 
-export interface Room {
+export interface Floor {
   id: string
   name: string
-  floor: string
+  order: number
   created_at: string
+}
+
+// ─── Area ─────────────────────────────────────────────────────────────────────────────────
+
+export interface Area {
+  id: string
+  name: string
+  floor_id: string
+  area_type: string
+  icon: string
+  created_at: string
+}
+
+// ─── Property ───────────────────────────────────────────────────────────────────────────
+
+export type PropertyType = 'hotel' | 'home' | 'apartment' | 'office' | 'estate'
+
+export interface Property {
+  name: string
+  address: string
+  type: PropertyType
+  timezone: string
+  updated_at: string
 }
 
 // ─── Device ───────────────────────────────────────────────────────────────────
@@ -30,7 +54,7 @@ export interface Device {
   id: string
   name: string
   type: string
-  room_id: string
+  area_id: string
   vendor: string
   firmware_version: string
   online: boolean
@@ -92,5 +116,6 @@ export interface User {
   id: string
   name: string
   role: UserRole
+  area_ids: string[]
   created_at: string
 }

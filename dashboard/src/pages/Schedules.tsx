@@ -8,7 +8,7 @@ import {
   getScenes,
 } from '../api'
 import Modal from '../components/Modal'
-import { Actions, Empty, Field, ModalFooter, Table } from './Rooms'
+import { Actions, Empty, Field, ModalFooter, Table } from './Areas'
 import type { Schedule, Scene } from '../types'
 
 const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -94,22 +94,22 @@ export default function Schedules() {
   return (
     <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-slate-800">Schedules</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Schedules</h1>
         <button onClick={openAdd} className="btn-primary">New Schedule</button>
       </div>
 
       {loading ? (
-        <p className="text-slate-400 text-sm">Loading…</p>
+        <p className="text-zinc-400 text-sm">Loading…</p>
       ) : schedules.length === 0 ? (
         <Empty message="No schedules yet. Schedules run a scene automatically at a set time." />
       ) : (
         <Table
           head={['Label', 'Time', 'Days', '→ Scene', 'On', '']}
           rows={schedules.map((s) => [
-            <span className="font-medium text-slate-800">{s.label}</span>,
-            <code className="text-sm text-slate-700">{fmt(s.hour, s.minute)}</code>,
-            <span className="text-xs text-slate-600">{fmtDays(s.days)}</span>,
-            <span className="text-slate-600">{sceneName(s.scene_id)}</span>,
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">{s.label}</span>,
+            <code className="text-sm text-zinc-700 dark:text-zinc-300">{fmt(s.hour, s.minute)}</code>,
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">{fmtDays(s.days)}</span>,
+            <span className="text-zinc-600 dark:text-zinc-400">{sceneName(s.scene_id)}</span>,
             <ToggleBadge enabled={s.enabled} onClick={() => toggle(s)} />,
             <Actions onDelete={() => handleDelete(s.id)} />,
           ])}
@@ -142,18 +142,18 @@ export default function Schedules() {
             </div>
 
             <div>
-              <label className="block text-xs text-slate-600 mb-1">
-                Days <span className="text-slate-400">(leave empty = every day)</span>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
+                Days <span className="text-zinc-400 dark:text-zinc-500 font-normal">(leave empty = every day)</span>
               </label>
               <div className="flex gap-1 flex-wrap">
                 {ALL_DAYS.map((d) => (
                   <button
                     key={d}
                     onClick={() => toggleDay(d)}
-                    className={`px-2 py-1 text-xs rounded border transition-colors ${
+                    className={`px-2 py-1 text-xs rounded-md border font-medium transition-colors ${
                       form.days.includes(d)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'border-slate-300 text-slate-600 hover:border-blue-400'
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-brand dark:hover:border-brand'
                     }`}
                   >
                     {d}
@@ -163,11 +163,11 @@ export default function Schedules() {
             </div>
 
             <div>
-              <label className="block text-xs text-slate-600 mb-1">Scene *</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">Scene *</label>
               <select
                 value={form.scene_id}
                 onChange={(e) => setForm((f) => ({ ...f, scene_id: e.target.value }))}
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
               >
                 <option value="">— Select scene —</option>
                 {scenes.map((s) => (
@@ -189,8 +189,10 @@ function ToggleBadge({ enabled, onClick }: { enabled: boolean; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-        enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+      className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${
+        enabled
+          ? 'bg-brand/10 text-brand dark:bg-brand/15 dark:text-brand-400'
+          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
       }`}
     >
       {enabled ? 'On' : 'Off'}

@@ -1,7 +1,9 @@
 import type {
+  Area,
   Device,
+  Floor,
   HubStatus,
-  Room,
+  Property,
   Rule,
   Scene,
   SceneAction,
@@ -32,22 +34,52 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const getStatus = (): Promise<HubStatus> =>
   req<HubStatus>('/status')
 
-// ─── Rooms ───────────────────────────────────────────────────────────────────
+// ─── Floors ─────────────────────────────────────────────────────────────────────────────
 
-export const getRooms = (): Promise<Room[]> =>
-  req<Room[]>('/api/v1/rooms')
+export const getFloors = (): Promise<Floor[]> =>
+  req<Floor[]>('/api/v1/floors')
 
-export const createRoom = (body: { name: string; floor: string }): Promise<Room> =>
-  req<Room>('/api/v1/rooms', { method: 'POST', body: JSON.stringify(body) })
+export const createFloor = (body: { name: string; order?: number }): Promise<Floor> =>
+  req<Floor>('/api/v1/floors', { method: 'POST', body: JSON.stringify(body) })
 
-export const updateRoom = (
+export const updateFloor = (
   id: string,
-  body: Partial<Pick<Room, 'name' | 'floor'>>,
-): Promise<Room> =>
-  req<Room>(`/api/v1/rooms/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+  body: Partial<Pick<Floor, 'name' | 'order'>>,
+): Promise<Floor> =>
+  req<Floor>(`/api/v1/floors/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
-export const deleteRoom = (id: string): Promise<void> =>
-  req<void>(`/api/v1/rooms/${id}`, { method: 'DELETE' })
+export const deleteFloor = (id: string): Promise<void> =>
+  req<void>(`/api/v1/floors/${id}`, { method: 'DELETE' })
+
+// ─── Areas ─────────────────────────────────────────────────────────────────────────────
+
+export const getAreas = (): Promise<Area[]> =>
+  req<Area[]>('/api/v1/areas')
+
+export const createArea = (body: {
+  name: string
+  floor_id?: string
+  area_type?: string
+  icon?: string
+}): Promise<Area> =>
+  req<Area>('/api/v1/areas', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateArea = (
+  id: string,
+  body: Partial<Pick<Area, 'name' | 'floor_id' | 'area_type' | 'icon'>>,
+): Promise<Area> =>
+  req<Area>(`/api/v1/areas/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteArea = (id: string): Promise<void> =>
+  req<void>(`/api/v1/areas/${id}`, { method: 'DELETE' })
+
+// ─── Property ──────────────────────────────────────────────────────────────────────────
+
+export const getProperty = (): Promise<Property> =>
+  req<Property>('/api/v1/property')
+
+export const updateProperty = (body: Partial<Omit<Property, 'updated_at'>>): Promise<Property> =>
+  req<Property>('/api/v1/property', { method: 'PATCH', body: JSON.stringify(body) })
 
 // ─── Devices ─────────────────────────────────────────────────────────────────
 
@@ -56,7 +88,7 @@ export const getDevices = (): Promise<Device[]> =>
 
 export const updateDevice = (
   id: string,
-  body: Partial<Pick<Device, 'name' | 'type' | 'room_id' | 'vendor' | 'firmware_version'>>,
+  body: Partial<Pick<Device, 'name' | 'type' | 'area_id' | 'vendor' | 'firmware_version'>>,
 ): Promise<Device> =>
   req<Device>(`/api/v1/devices/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
@@ -129,6 +161,7 @@ export const createUser = (body: {
   name: string
   role: UserRole
   pin: string
+  area_ids?: string[]
 }): Promise<User> =>
   req<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(body) })
 
@@ -142,9 +175,8 @@ export const deleteUser = (id: string): Promise<void> =>
 
 export function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const isViteDev = window.location.port === '5173'
-  const host = isViteDev
-    ? `${window.location.hostname}:8080`
-    : window.location.host
-  return `${proto}//${host}/ws`
+  // In Vite dev (any non-standard port) we proxy /ws through the dev server,
+  // which forwards to the engine on :8080 via the vite.config ws proxy.
+  // In production (port 80/443) we use the same origin.
+  return `${proto}//${window.location.host}/ws`
 }
