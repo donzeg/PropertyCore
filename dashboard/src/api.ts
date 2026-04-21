@@ -17,7 +17,7 @@ import type {
 // returns undefined for empty responses (204 or empty body).
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('pc-token')
+  const token = localStorage.getItem('pc-admin-token')
   const res = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
@@ -27,8 +27,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (res.status === 401) {
-    localStorage.removeItem('pc-token')
-    localStorage.removeItem('pc-user-id')
+    localStorage.removeItem('pc-admin-token')
+    localStorage.removeItem('pc-admin-id')
     window.location.href = '/admin/login'
     throw new Error('Unauthorized')
   }
@@ -182,18 +182,20 @@ export const deleteUser = (id: string): Promise<void> =>
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function logout(): Promise<void> {
-  const token = localStorage.getItem('pc-token')
+  const token = localStorage.getItem('pc-admin-token')
   try {
-    await fetch('/api/v1/auth/logout', {
+    await fetch('/api/v1/admin/logout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     })
   } catch {
     // ignore — clear local state regardless
   } finally {
-    localStorage.removeItem('pc-token')
-    localStorage.removeItem('pc-user-id')
+    localStorage.removeItem('pc-admin-token')
+    localStorage.removeItem('pc-admin-id')
   }
 }
 

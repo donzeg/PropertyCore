@@ -59,6 +59,7 @@ func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateM
 // makeDevicesHandler handles both:
 //
 //	GET /api/v1/devices      → list all devices
+//
 // makeDevicesHandler handles all device CRUD endpoints plus live state merging:
 //
 //	GET    /api/v1/devices      → list all devices (registry + live state)
@@ -913,5 +914,177 @@ func makeSchedulesHandler(sm *ScheduleManager) http.HandlerFunc {
 		default:
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
+	}
+}
+
+// adminTokenFromRequest extracts the Bearer token from the Authorization header.
+// Returns empty string if not present.
+func adminTokenFromRequest(r *http.Request) string {
+	hdr := r.Header.Get("Authorization")
+	if strings.HasPrefix(hdr, "Bearer ") {
+		return strings.TrimPrefix(hdr, "Bearer ")
+	}
+	return ""
+}
+
+// makeAdminAuthHandler handles dashboard admin login and logout.
+//
+//	POST /api/v1/admin/login   → {"username":"...","password":"..."} → {"token":"...","account":{...}}
+//	POST /api/v1/admin/logout  → Authorization: Bearer <token>       → 204
+func makeAdminAuthHandler(am *AdminManager, sm *SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/admin")
+
+		if suffix == "/logout" {
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			token := adminTokenFromRequest(r)
+			if token != "" {
+				sm.Invalidate(token)
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if suffix != "/login" {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"error":"username and password are required"}`)
+			return
+		}
+
+		account, ok := am.Authenticate(body.Username, body.Password)
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"invalid username or password"}`)
+			return
+		}
+
+		token, err := sm.NewSession(account.ID)
+		if err != nil {
+			http.Error(w, `{"error":"could not create session"}`, http.StatusInternalServerError)
+			return
+		}
+
+		type loginResponse struct {
+			Token   string       `json:"token"`
+			Account *adminPublic `json:"account"`
+		}
+		if err := json.NewEncoder(w).Encode(loginResponse{Token: token, Account: toAdminPublic(account)}); err != nil {
+			http.Error(w, "encode error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// makeAdminAccountsHandler handles CRUD for dashboard admin accounts.
+// All operations require a valid admin session token in the Authorization header.
+//
+//	GET    /api/v1/admin/accounts                            → list accounts
+//	POST   /api/v1/admin/accounts                            → create account
+//	DELETE /api/v1/admin/accounts/{id}                       → delete account
+//	POST   /api/v1/admin/accounts/{id}/change-password       → change password
+func makeAdminAccountsHandler(am *AdminManager, sm *SessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// All endpoints require a valid admin session.
+		token := adminTokenFromRequest(r)
+		if _, ok := sm.ValidateToken(token); !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"unauthorized"}`)
+			return
+		}
+
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/accounts")
+
+		// Collection: GET or POST /api/v1/admin/accounts
+		if suffix == "" || suffix == "/" {
+			switch r.Method {
+			case http.MethodGet:
+				if err := json.NewEncoder(w).Encode(am.GetAll()); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			case http.MethodPost:
+				var body struct {
+					Username string `json:"username"`
+					Password string `json:"password"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"invalid JSON"}`)
+					return
+				}
+				a, err := am.Create(body.Username, body.Password)
+				if err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintf(w, `{"error":%q}`, err.Error())
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				if err := json.NewEncoder(w).Encode(toAdminPublic(a)); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Strip leading slash
+		if strings.HasPrefix(suffix, "/") {
+			suffix = suffix[1:]
+		}
+
+		// Change-password: POST /api/v1/admin/accounts/{id}/change-password
+		if idx := strings.LastIndex(suffix, "/change-password"); idx != -1 {
+			id := suffix[:idx]
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			var body struct {
+				Password string `json:"password"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Password == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"password is required"}`)
+				return
+			}
+			if err := am.ChangePassword(id, body.Password); err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":%q}`, err.Error())
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		// Single account: DELETE /api/v1/admin/accounts/{id}
+		id := suffix
+		if r.Method != http.MethodDelete {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		if !am.Delete(id) {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"error":"account not found","id":%q}`, id)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

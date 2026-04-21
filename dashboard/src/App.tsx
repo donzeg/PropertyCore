@@ -50,7 +50,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
-  const token = localStorage.getItem('pc-token')
+  const token = localStorage.getItem('pc-admin-token')
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }

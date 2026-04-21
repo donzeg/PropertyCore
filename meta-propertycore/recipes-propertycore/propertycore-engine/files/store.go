@@ -200,3 +200,20 @@ func (s *Store) SaveDevices(devices []*DeviceInfo) {
 		log.Printf("store: save devices error: %v", err)
 	}
 }
+
+// LoadAdminAccounts returns all persisted dashboard admin accounts, or nil if none stored yet.
+func (s *Store) LoadAdminAccounts() []*AdminAccount {
+	var accounts []*AdminAccount
+	if err := s.loadJSON("admin_accounts.json", &accounts); err != nil {
+		log.Printf("store: load admin accounts error: %v", err)
+		return nil
+	}
+	return accounts
+}
+
+// SaveAdminAccounts persists the full admin account list atomically.
+func (s *Store) SaveAdminAccounts(accounts []*AdminAccount) {
+	if err := s.saveJSON("admin_accounts.json", accounts); err != nil {
+		log.Printf("store: save admin accounts error: %v", err)
+	}
+}

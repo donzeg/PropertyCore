@@ -1,73 +1,40 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Backspace } from '@phosphor-icons/react'
-import { getUsers } from '../api'
-import type { User } from '../types'
-
-const MAX_ATTEMPTS = 5
-const PIN_LENGTH   = 6
-
-// ─── Login page ───────────────────────────────────────────────────────────────
+import { Eye, EyeSlash } from '@phosphor-icons/react'
 
 export default function Login() {
   const navigate = useNavigate()
 
-  const [users,       setUsers]       = useState<User[]>([])
-  const [selectedId,  setSelectedId]  = useState<string>('')
-  const [pin,         setPin]         = useState('')
-  const [attempts,    setAttempts]    = useState(0)
-  const [error,       setError]       = useState<string | null>(null)
-  const [loading,     setLoading]     = useState(false)
-  const [locked,      setLocked]      = useState(false)
+  const [username,     setUsername]     = useState('')
+  const [password,     setPassword]     = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(false)
 
   useEffect(() => {
-    // Redirect if already authenticated
-    if (localStorage.getItem('pc-token')) {
+    if (localStorage.getItem('pc-admin-token')) {
       navigate('/overview', { replace: true })
-      return
     }
-    getUsers().catch(() => []).then((u) => {
-      setUsers(u as User[])
-      if ((u as User[]).length > 0) setSelectedId((u as User[])[0].id)
-    })
   }, [navigate])
 
-  const handleDigit = (d: string) => {
-    if (locked || pin.length >= PIN_LENGTH) return
-    setPin((p) => p + d)
-    setError(null)
-  }
-
-  const handleBackspace = () => {
-    if (locked) return
-    setPin((p) => p.slice(0, -1))
-    setError(null)
-  }
-
-  const handleSubmit = async () => {
-    if (loading || locked || pin.length < PIN_LENGTH || !selectedId) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!username.trim() || !password) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/v1/auth', {
+      const res = await fetch('/api/v1/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ username: username.trim(), password }),
       })
       if (!res.ok) {
-        const newAttempts = attempts + 1
-        setAttempts(newAttempts)
-        if (newAttempts >= MAX_ATTEMPTS) {
-          setLocked(true)
-          setError(`Too many failed attempts. Please contact your administrator.`)
-        } else {
-          setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`)
-        }
-        setPin('')
+        setError('Invalid username or password.')
+        setPassword('')
       } else {
         const data = await res.json()
-        localStorage.setItem('pc-token',   data.token)
-        localStorage.setItem('pc-user-id', selectedId)
+        localStorage.setItem('pc-admin-token', data.token)
+        localStorage.setItem('pc-admin-id',    data.account.id)
         navigate('/overview', { replace: true })
       }
     } catch {
@@ -76,16 +43,6 @@ export default function Login() {
       setLoading(false)
     }
   }
-
-  // Auto-submit when PIN is complete
-  useEffect(() => {
-    if (pin.length === PIN_LENGTH && !loading && !locked) {
-      handleSubmit()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin])
-
-  const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', 'back']
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4">
@@ -100,99 +57,76 @@ export default function Login() {
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-white tracking-tight">
             PropertyCore
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Engineer Login</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Configuration Dashboard</p>
         </div>
 
-        <div className="card space-y-5">
-          {/* User select */}
+        <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
+          {/* Username */}
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-              Login as
+              Username
             </label>
-            {users.length === 0 ? (
-              <p className="text-xs text-zinc-400">Loading users…</p>
-            ) : (
-              <select
-                className="input"
-                value={selectedId}
-                onChange={(e) => { setSelectedId(e.target.value); setPin(''); setError(null) }}
-                disabled={locked}
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role})
-                  </option>
-                ))}
-              </select>
-            )}
+            <input
+              type="text"
+              autoComplete="username"
+              autoFocus
+              className="input"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(null) }}
+              placeholder="admin"
+              disabled={loading}
+            />
           </div>
 
-          {/* PIN dots */}
+          {/* Password */}
           <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-3">
-              PIN
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+              Password
             </label>
-            <div className="flex justify-center gap-3 mb-4">
-              {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    i < pin.length
-                      ? 'bg-brand'
-                      : 'bg-zinc-200 dark:bg-zinc-700'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Numpad */}
-            <div className="grid grid-cols-3 gap-2">
-              {DIGITS.map((d, i) => {
-                if (d === null) return <div key={i} />
-                if (d === 'back') return (
-                  <button
-                    key="back"
-                    onClick={handleBackspace}
-                    disabled={locked || pin.length === 0}
-                    className="h-12 rounded-xl flex items-center justify-center
-                               text-zinc-500 dark:text-zinc-400
-                               hover:bg-zinc-100 dark:hover:bg-zinc-800
-                               disabled:opacity-30 disabled:cursor-not-allowed
-                               transition-colors"
-                  >
-                    <Backspace size={18} weight="regular" />
-                  </button>
-                )
-                return (
-                  <button
-                    key={d}
-                    onClick={() => handleDigit(d)}
-                    disabled={locked || loading}
-                    className="h-12 rounded-xl font-semibold text-lg
-                               text-zinc-800 dark:text-zinc-200
-                               bg-zinc-100 dark:bg-zinc-800
-                               hover:bg-zinc-200 dark:hover:bg-zinc-700
-                               disabled:opacity-30 disabled:cursor-not-allowed
-                               transition-colors active:scale-95"
-                  >
-                    {d}
-                  </button>
-                )
-              })}
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                className="input pr-10"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(null) }}
+                placeholder="••••••••"
+                disabled={loading}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3
+                           text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                {showPassword
+                  ? <EyeSlash size={16} weight="regular" />
+                  : <Eye      size={16} weight="regular" />}
+              </button>
             </div>
           </div>
 
           {/* Error */}
           {error && (
-            <p className="text-xs text-red-500 dark:text-red-400 text-center">{error}</p>
+            <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
           )}
 
-          {/* Loading indicator */}
-          {loading && (
-            <p className="text-xs text-zinc-400 text-center">Verifying…</p>
-          )}
-        </div>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading || !username.trim() || !password}
+            className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+
+          <p className="text-center text-xs text-zinc-400 dark:text-zinc-600">
+            Default: admin / propertycore
+          </p>
+        </form>
       </div>
     </div>
   )
 }
+

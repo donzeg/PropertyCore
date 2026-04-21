@@ -1,6 +1,7 @@
-// PropertyCore Automation Engine — v0.12.0
-// Adds InfluxDB 1.8 time-series data pipeline (device state → InfluxDB line protocol).
-// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + api.go + ws.go + influx.go
+// PropertyCore Automation Engine — v0.13.0
+// Adds dashboard admin accounts (separate from mobile-app users).
+// PBKDF2-HMAC-SHA256 passwords, /api/v1/admin/login + /api/v1/admin/accounts endpoints.
+// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + admin.go + api.go + ws.go + influx.go
 package main
 
 import (
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	version       = "0.12.0"
+	version       = "0.13.0"
 	httpPort      = "8080"
 	mqttDefault   = "localhost:1883"
 	influxDefault = "http://localhost:8086"
@@ -140,6 +141,15 @@ func main() {
 	// Session manager — in-memory PIN auth tokens for the mobile app
 	sessions := NewSessionManager()
 
+	// Admin manager — dashboard login credentials (username + password)
+	admins := NewAdminManager(store)
+	if stored := store.LoadAdminAccounts(); len(stored) > 0 {
+		admins.Load(stored)
+		log.Printf("Loaded %d admin account(s) from store", len(stored))
+	}
+	admins.SeedDefault() // creates admin/propertycore if no accounts exist
+	adminSessions := NewSessionManager()
+
 	// Schedule manager — start ticker after all scenes are loaded
 	scheduler := NewScheduleManager(scenes, mqttClient, store)
 	if stored := store.LoadSchedules(); len(stored) > 0 {
@@ -172,6 +182,10 @@ func main() {
 	mux.HandleFunc("/api/v1/users/", makeUsersHandler(users))
 	mux.HandleFunc("/api/v1/auth", makeAuthHandler(users, sessions))
 	mux.HandleFunc("/api/v1/auth/", makeAuthHandler(users, sessions))
+	mux.HandleFunc("/api/v1/admin/login", makeAdminAuthHandler(admins, adminSessions))
+	mux.HandleFunc("/api/v1/admin/logout", makeAdminAuthHandler(admins, adminSessions))
+	mux.HandleFunc("/api/v1/admin/accounts", makeAdminAccountsHandler(admins, adminSessions))
+	mux.HandleFunc("/api/v1/admin/accounts/", makeAdminAccountsHandler(admins, adminSessions))
 	mux.HandleFunc("/api/v1/schedules", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/api/v1/schedules/", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))
