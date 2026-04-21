@@ -376,6 +376,24 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - `Docs/PRODUCT-LIBRARY.md` — Full hardware catalog: 78 SKUs across 19 categories with sourcing strategy
 - `Docs/UI-SCOPE.md` — All 4 UI surfaces fully scoped: Web Config Dashboard (35 sections), Mobile App, Wall Panel Kiosk, Smart Remote (v0.4)
 - `Docs/inverter/deye 16kw.yaml` — DEYE inverter ESPHome YAML — source of truth for Modbus register map
+- `Docs/DASHBOARD-PLAN.md` — **Phased build plan for the React config dashboard** (10 phases, all features, per-component spec). Primary reference for all dashboard work.
+- `Docs/MOBILE-PLAN.md` — **Phased build plan for the Flutter mobile app** (12 phases, all screens, per-widget spec). Primary reference for all mobile work.
+
+---
+
+## UI Build Workflow (MANDATORY — follow this for every dashboard or mobile build)
+
+Before writing any dashboard or mobile code:
+
+1. **Read the plan.** Open `Docs/DASHBOARD-PLAN.md` or `Docs/MOBILE-PLAN.md`. Find the next phase marked `⬜ Not started`. Read the full spec for that phase — all deliverables, field lists, API requirements, and component notes.
+
+2. **Build complete.** Implement the entire phase as specified. Do not skip sections within a phase. Do not start the next phase until the current one is fully working.
+
+3. **Update the plan.** After the phase is verified working, update the phase status in the plan document from `⬜ Not started` to `✅ Complete` (the summary table at the bottom of each plan, plus the individual section header).
+
+4. **Update copilot-instructions.md.** Add an entry in the Phase 3 checklist (or a new phase section) recording what was built, with the git commit hash.
+
+This process applies to every UI build session without exception.
 
 ---
 
