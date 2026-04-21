@@ -1,6 +1,6 @@
-// PropertyCore Automation Engine — v0.11.0
-// Adds Area rename (Room→Area), Floor entity, Property singleton.
-// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + api.go + ws.go
+// PropertyCore Automation Engine — v0.12.0
+// Adds InfluxDB 1.8 time-series data pipeline (device state → InfluxDB line protocol).
+// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + api.go + ws.go + influx.go
 package main
 
 import (
@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	version     = "0.11.0"
-	httpPort    = "8080"
-	mqttDefault = "localhost:1883"
+	version       = "0.12.0"
+	httpPort      = "8080"
+	mqttDefault   = "localhost:1883"
+	influxDefault = "http://localhost:8086"
+	influxDBName  = "propertycore"
 )
 
 var startTime = time.Now()
@@ -37,6 +39,18 @@ func main() {
 		log.Fatalf("store init: %v", err)
 	}
 	log.Printf("Persistence store: %s", storeDir)
+
+	// InfluxDB writer — defaults to localhost:8086, override with INFLUXDB_URL env var
+	influxURL := os.Getenv("INFLUXDB_URL")
+	if influxURL == "" {
+		influxURL = influxDefault
+	}
+	influxDB := os.Getenv("INFLUXDB_DB")
+	if influxDB == "" {
+		influxDB = influxDBName
+	}
+	influx := NewInfluxWriter(influxURL, influxDB)
+	log.Printf("InfluxDB: writing to %s db=%s", influxURL, influxDB)
 
 	// Device state manager
 	state := NewStateManager()
@@ -66,6 +80,7 @@ func main() {
 		registry.MarkSeen(dev.ID, dev.Type)
 		wsHub.Broadcast("device_state", dev)
 		rulesEngine.Evaluate(dev)
+		go influx.WriteDeviceState(dev)
 	}
 
 	// MQTT client — connects to Mosquitto, subscribes to device state topics

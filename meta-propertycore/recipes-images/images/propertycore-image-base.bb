@@ -29,6 +29,8 @@ IMAGE_INSTALL = " \
     \
     propertycore-engine \
     \
+    influxdb \
+    \
     i2c-tools \
     \
     util-linux \

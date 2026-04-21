@@ -1,0 +1,12 @@
+[Unit]
+Description=InfluxDB database initialization for PropertyCore
+After=influxdb.service
+Requires=influxdb.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/influxdb/influxdb-init.sh
+
+[Install]
+WantedBy=multi-user.target

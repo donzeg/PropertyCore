@@ -271,6 +271,7 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - [x] Engine v0.10/v0.11 + dark mode dashboard committed (commit `0f0d43e`, `90b4b80`)
 - [x] QEMU rebuilt and verified: engine v0.11.0, all new endpoints (`/api/v1/areas`, `/api/v1/floors`, `/api/v1/property`, auth), nginx `/admin/` 200 OK
 - [x] Flutter mobile app v0.1 — `mobile/` (Flutter 3.41.7, Dart 3.11.5, `flutter analyze` clean, commit `d5029e6`)
+- [x] pm2 process manager — engine + dashboard running persistently on ThinkPad; auto-starts on boot via `pm2-syeed` systemd service
 - [ ] InfluxDB recipe + time-series data pipeline — **next**
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
@@ -350,6 +351,7 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - **nginx PID path** — the upstream nginx systemd unit uses `PIDFile=/run/nginx/nginx.pid`. Our `nginx.conf` must use `pid /run/nginx/nginx.pid;` (not `/run/nginx.pid`). Add `RuntimeDirectory=nginx` via a systemd drop-in at `nginx.service.d/override.conf` so `/run/nginx/` exists before nginx starts. Declare `FILES:${PN} += "${systemd_system_unitdir}/nginx.service.d"` to avoid QA packaging errors.
 - **QEMU background launch** — always use `runqemu qemuarm64 nographic slirp < /dev/null > /tmp/qemu.log 2>&1 &`. Without `< /dev/null`, the process gets `SIGTTIN` (stopped state `Tl`) when backgrounded because `-serial mon:stdio` tries to read stdin.
 - **Local host dev (engine)** — build for amd64: `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=off GOFLAGS=-mod=mod GOCACHE=/tmp/go-cache HOME=/tmp $GO build -o /tmp/propertycore-engine .` (where `$GO` = Yocto's go-binary-native). Requires `/var/lib/propertycore/` owned by current user: `sudo mkdir -p /var/lib/propertycore && sudo chown $USER /var/lib/propertycore`. Mosquitto must be running on host: `sudo apt install mosquitto`.
+- **pm2 on ThinkPad** — engine binary lives at `~/.local/bin/propertycore-engine` (not `/tmp/` — survives reboots). Dashboard Vite dev server runs from `dashboard/`. Both managed by pm2: `pm2 list` to check status. `pm2-syeed` systemd service auto-starts both on boot. After rebuilding the engine: `cp /tmp/propertycore-engine ~/.local/bin/propertycore-engine && pm2 restart propertycore-engine`. Dashboard runs on `:5173` (falls back to `:5174+` if port in use). Engine on `:8080`. Tailscale IP: `100.124.233.18`.
 - **`area_id` not `room_id`** — the device metadata field was renamed from `room_id` to `area_id` in v0.11. All API payloads and engine structs use `area_id`.
 - **Flutter `late` fields** — class fields initialized in a constructor body (not inline) must be declared `late`. Analyzer error `not_initialized_non_nullable_instance_field` means you need `late AppMode _appMode;` not `AppMode _appMode;`.
 - **Flutter `.withValues(alpha:)` not `.withOpacity()`** — `.withOpacity()` is deprecated in Flutter 3.x. Always use `.withValues(alpha: 0.5)`.
