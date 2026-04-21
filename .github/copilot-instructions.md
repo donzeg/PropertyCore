@@ -278,6 +278,12 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - [x] Engine v0.10/v0.11 + dark mode dashboard committed (commit `0f0d43e`, `90b4b80`)
 - [x] QEMU rebuilt and verified: engine v0.11.0, all new endpoints (`/api/v1/areas`, `/api/v1/floors`, `/api/v1/property`, auth), nginx `/admin/` 200 OK
 - [x] Flutter mobile app v0.1 — `mobile/` (Flutter 3.41.7, Dart 3.11.5, `flutter analyze` clean, commit `d5029e6`)
+- [x] Dashboard Phase 1: sidebar redesign + login + property page (commit `cf70e28`)
+  - Layout.tsx: Phosphor Icons, grouped sections (Overview/Property/Devices/Automation/Access/Energy/Media/System), collapse-to-icon mode, PropertyContext for hotel section visibility, no border-r separator (background color only)
+  - Login.tsx: full-screen PIN pad, user select, 5-attempt lockout, stores `pc-token` in localStorage
+  - Property.tsx: name/type/timezone form, `PATCH /api/v1/property`
+  - App.tsx: `RequireAuth` guard + `/login` route + `/property` route
+  - api.ts: `Authorization: Bearer` injection in `req<T>`, 401→redirect, `logout()` helper
 - [x] pm2 process manager — engine + dashboard running persistently on ThinkPad; auto-starts on boot via `pm2-syeed` systemd service
 - [x] InfluxDB recipe + time-series data pipeline — `influx.go` in engine, `meta-propertycore/recipes-propertycore/influxdb/` Yocto recipe (commit `d9ab7d7`)
 - [x] Read-only rootfs + persistent data layer — `IMAGE_FEATURES+=read-only-rootfs`, `propertycore-persist` recipe, bind-mounts `/var/lib/propertycore` + `/var/lib/influxdb` from data partition (commit `177ff60`)
