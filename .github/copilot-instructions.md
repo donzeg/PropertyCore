@@ -268,9 +268,9 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 - [x] Engine v0.10: PIN-based session auth (SessionManager, crypto/rand tokens)
 - [x] Engine v0.11: Room→Area rename, Floor entity, Property singleton; Yocto recipes updated
 - [x] Dashboard: Zinc+Emerald light/dark mode redesign — theme toggle in sidebar, persisted in localStorage (commit `4c39b3e`)
-- [ ] Commit engine v0.10/v0.11 + push to GitHub — **next**
-- [ ] Flutter mobile app (owner/guest control)
-- [ ] Rebuild QEMU image with v0.11 engine + dark mode dashboard
+- [x] Engine v0.10/v0.11 + dark mode dashboard committed (commit `0f0d43e`, `90b4b80`)
+- [x] QEMU rebuilt and verified: engine v0.11.0, all new endpoints (`/api/v1/areas`, `/api/v1/floors`, `/api/v1/property`, auth), nginx `/admin/` 200 OK
+- [ ] Flutter mobile app (owner/guest control) — **next**
 - [ ] InfluxDB recipe + time-series data pipeline
 - [ ] Read-only rootfs + overlay
 - [ ] OTA update mechanism (Mender or RAUC)
