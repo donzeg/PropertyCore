@@ -231,6 +231,7 @@ Engine reached v0.11.0. All components built, Yocto-packaged, and verified in QE
 | v0.10 | — | PIN-based session auth (SessionManager, crypto/rand tokens, in-memory only) |
 | v0.11 | — | Room→Area rename, Floor entity, Property singleton; Yocto recipes 0.10+0.11 |
 | v0.12 | `d9ab7d7` | InfluxDB time-series pipeline — `influx.go` writes `device_state` measurements on every MQTT state event |
+| v0.13 | `704b436` | Dashboard admin accounts — AdminManager, PBKDF2-HMAC-SHA256, `admin_accounts.json`, `/api/v1/admin/` endpoints |
 
 **Engine API surface (all on `:8080`):**
 - `GET /health` — liveness probe
@@ -287,6 +288,11 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - [x] pm2 process manager — engine + dashboard running persistently on ThinkPad; auto-starts on boot via `pm2-syeed` systemd service
 - [x] InfluxDB recipe + time-series data pipeline — `influx.go` in engine, `meta-propertycore/recipes-propertycore/influxdb/` Yocto recipe (commit `d9ab7d7`)
 - [x] Read-only rootfs + persistent data layer — `IMAGE_FEATURES+=read-only-rootfs`, `propertycore-persist` recipe, bind-mounts `/var/lib/propertycore` + `/var/lib/influxdb` from data partition (commit `177ff60`)
+- [x] Engine v0.13: dashboard admin accounts — separate from mobile PIN users (commit `704b436`)
+  - `admin.go`: AdminManager, PBKDF2-HMAC-SHA256 (100k iter, pure stdlib), `admin_accounts.json`
+  - `POST /api/v1/admin/login` (username+password), `POST /api/v1/admin/logout`, `GET|POST /api/v1/admin/accounts`, `DELETE /api/v1/admin/accounts/{id}`, `POST /api/v1/admin/accounts/{id}/change-password`
+  - Default: admin/propertycore with `force_change_password=true` on first run
+  - Dashboard Login.tsx: username + password form, `pc-admin-token` in localStorage
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
 
@@ -366,6 +372,9 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - **Local host dev (engine)** — build for amd64: `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=off GOFLAGS=-mod=mod GOCACHE=/tmp/go-cache HOME=/tmp $GO build -o /tmp/propertycore-engine .` (where `$GO` = Yocto's go-binary-native). Requires `/var/lib/propertycore/` owned by current user: `sudo mkdir -p /var/lib/propertycore && sudo chown $USER /var/lib/propertycore`. Mosquitto must be running on host: `sudo apt install mosquitto`.
 - **pm2 on ThinkPad** — engine binary lives at `~/.local/bin/propertycore-engine` (not `/tmp/` — survives reboots). Dashboard Vite dev server runs from `dashboard/`. Both managed by pm2: `pm2 list` to check status. `pm2-syeed` systemd service auto-starts both on boot. After rebuilding the engine: `cp /tmp/propertycore-engine ~/.local/bin/propertycore-engine && pm2 restart propertycore-engine`. Dashboard runs on `:5173` (falls back to `:5174+` if port in use). Engine on `:8080`. Tailscale IP: `100.124.233.18`.
 - **`area_id` not `room_id`** — the device metadata field was renamed from `room_id` to `area_id` in v0.11. All API payloads and engine structs use `area_id`.
+- **Two auth systems** — the engine has two completely separate authentication subsystems: (1) **Dashboard admin accounts** — `AdminManager` + separate `adminSessions` SessionManager, persisted to `admin_accounts.json`, PBKDF2-HMAC-SHA256 100k iterations, username+password, endpoints under `/api/v1/admin/`. (2) **Mobile app users** — `UserManager` + `sessions` SessionManager, persisted to `users.json`, PIN-based, endpoints under `/api/v1/auth/`. Never mix the two. Dashboard token key is `pc-admin-token`; mobile token key is `pc-token`.
+- **Default dashboard credentials** — admin/propertycore, `force_change_password=true`. Created by `admins.SeedDefault()` in main.go on first startup if `admin_accounts.json` is empty.
+- **PBKDF2 pure stdlib** — `crypto/hmac` + `crypto/sha256` + `crypto/rand` + `encoding/binary`. No `golang.org/x/crypto` (no external deps allowed). Hash format: `"pbkdf2:sha256:100000:<b64salt>:<b64key>"`. Constant-time compare via `hmac.Equal`.
 - **Flutter `late` fields** — class fields initialized in a constructor body (not inline) must be declared `late`. Analyzer error `not_initialized_non_nullable_instance_field` means you need `late AppMode _appMode;` not `AppMode _appMode;`.
 - **Flutter `.withValues(alpha:)` not `.withOpacity()`** — `.withOpacity()` is deprecated in Flutter 3.x. Always use `.withValues(alpha: 0.5)`.
 - **Flutter `unawaited()`** — requires `import 'dart:async';`. Alternatively use `.ignore()` (Dart 3 API, no import needed).
