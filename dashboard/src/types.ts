@@ -60,6 +60,7 @@ export interface Device {
   online: boolean
   last_seen: string
   created_at: string
+  metadata?: Record<string, unknown>
   state?: Record<string, unknown>
 }
 

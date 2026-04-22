@@ -1,21 +1,36 @@
 import { useEffect, useState } from 'react'
-import { deleteDevice, getAreas, getDevices, updateDevice } from '../api'
+import { deleteDevice, getAreas, getDevices, getScenes, updateDevice } from '../api'
 import Modal from '../components/Modal'
+import ConfigSheet from '../components/ConfigSheet'
+import RelayConfig from './devices/RelayConfig'
+import DimmerConfig from './devices/DimmerConfig'
+import AcConfig from './devices/AcConfig'
+import CurtainConfig from './devices/CurtainConfig'
+import KeypadConfig from './devices/KeypadConfig'
+import WallPanelConfig from './devices/WallPanelConfig'
+import SmartRemoteConfig from './devices/SmartRemoteConfig'
 import { Actions, Empty, Field, ModalFooter, Table } from './Areas'
-import type { Area, Device } from '../types'
+import type { Area, Device, Scene } from '../types'
+
+// Device types that have a dedicated config panel
+const CONFIGURABLE_TYPES = new Set([
+  'relay', 'dimmer', 'ac_gateway', 'curtain', 'keypad', 'wall_panel', 'smart_remote',
+])
 
 export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([])
   const [areas, setAreas] = useState<Area[]>([])
+  const [scenes, setScenes] = useState<Scene[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Device | null>(null)
+  const [configuring, setConfiguring] = useState<Device | null>(null)
   const [form, setForm] = useState({ name: '', area_id: '' })
   const [error, setError] = useState('')
 
   const load = () => {
     setLoading(true)
-    Promise.all([getDevices(), getAreas()])
-      .then(([d, a]) => { setDevices(d); setAreas(a) })
+    Promise.all([getDevices(), getAreas(), getScenes()])
+      .then(([d, a, s]) => { setDevices(d); setAreas(a); setScenes(s) })
       .catch(() => setError('Failed to load'))
       .finally(() => setLoading(false))
   }
@@ -46,6 +61,11 @@ export default function Devices() {
 
   const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? '—'
 
+  // Refresh the configuring device reference after a save (so metadata is up to date)
+  const onConfigSaved = () => {
+    load()
+  }
+
   return (
     <div className="p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
@@ -73,11 +93,20 @@ export default function Devices() {
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
               {d.last_seen ? new Date(d.last_seen).toLocaleString() : '—'}
             </span>,
-            <Actions onEdit={() => openEdit(d)} onDelete={() => handleDelete(d.id)} />,
+            <Actions
+              onEdit={() => openEdit(d)}
+              onDelete={() => handleDelete(d.id)}
+              extraActions={
+                CONFIGURABLE_TYPES.has(d.type)
+                  ? [{ label: 'Configure', onClick: () => setConfiguring(d), color: 'text-brand dark:text-brand-400' }]
+                  : undefined
+              }
+            />,
           ])}
         />
       )}
 
+      {/* Edit modal (name + area) */}
       {editing && (
         <Modal title={`Edit Device — ${editing.id}`} onClose={() => setEditing(null)}>
           <div className="space-y-3">
@@ -114,6 +143,37 @@ export default function Devices() {
             <ModalFooter onCancel={() => setEditing(null)} onSave={handleSave} />
           </div>
         </Modal>
+      )}
+
+      {/* Device-type config sheet */}
+      {configuring && (
+        <ConfigSheet
+          title={`Configure — ${configuring.name}`}
+          subtitle={`${configuring.type} · ${configuring.id}`}
+          onClose={() => setConfiguring(null)}
+        >
+          {configuring.type === 'relay' && (
+            <RelayConfig device={configuring} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'dimmer' && (
+            <DimmerConfig device={configuring} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'ac_gateway' && (
+            <AcConfig device={configuring} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'curtain' && (
+            <CurtainConfig device={configuring} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'keypad' && (
+            <KeypadConfig device={configuring} scenes={scenes} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'wall_panel' && (
+            <WallPanelConfig device={configuring} areas={areas} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+          {configuring.type === 'smart_remote' && (
+            <SmartRemoteConfig device={configuring} scenes={scenes} onClose={() => setConfiguring(null)} onSaved={onConfigSaved} />
+          )}
+        </ConfigSheet>
       )}
     </div>
   )

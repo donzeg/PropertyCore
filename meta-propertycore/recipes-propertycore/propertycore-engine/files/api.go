@@ -76,6 +76,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.Hand
 		AreaID          string                 `json:"area_id,omitempty"`
 		Vendor          string                 `json:"vendor,omitempty"`
 		FirmwareVersion string                 `json:"firmware_version,omitempty"`
+		Metadata        json.RawMessage        `json:"metadata,omitempty"`
 		Online          bool                   `json:"online"`
 		LastSeen        time.Time              `json:"last_seen"`
 		CreatedAt       time.Time              `json:"created_at"`
@@ -90,6 +91,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.Hand
 			AreaID:          d.AreaID,
 			Vendor:          d.Vendor,
 			FirmwareVersion: d.FirmwareVersion,
+			Metadata:        d.Metadata,
 			Online:          d.Online,
 			LastSeen:        d.LastSeen,
 			CreatedAt:       d.CreatedAt,

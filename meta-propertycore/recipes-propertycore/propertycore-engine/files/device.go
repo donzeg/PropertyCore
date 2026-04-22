@@ -5,21 +5,23 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 )
 
 // DeviceInfo holds the persistent metadata for a registered device.
 type DeviceInfo struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Type            string    `json:"type"`             // relay, ac_gateway, sensor, etc.
-	AreaID          string    `json:"area_id,omitempty"` // foreign key to Area
-	Vendor          string    `json:"vendor,omitempty"`
-	FirmwareVersion string    `json:"firmware_version,omitempty"`
-	Online          bool      `json:"online"`
-	LastSeen        time.Time `json:"last_seen"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string          `json:"id"`
+	Name            string          `json:"name"`
+	Type            string          `json:"type"`             // relay, ac_gateway, sensor, etc.
+	AreaID          string          `json:"area_id,omitempty"` // foreign key to Area
+	Vendor          string          `json:"vendor,omitempty"`
+	FirmwareVersion string          `json:"firmware_version,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"` // device-type-specific config (arbitrary JSON)
+	Online          bool            `json:"online"`
+	LastSeen        time.Time       `json:"last_seen"`
+	CreatedAt       time.Time       `json:"created_at"`
 }
 
 // DeviceRegistry manages the persistent catalog of known devices.
@@ -136,6 +138,9 @@ func (dr *DeviceRegistry) Update(id string, patch *DeviceInfo) bool {
 	}
 	if patch.FirmwareVersion != "" {
 		d.FirmwareVersion = patch.FirmwareVersion
+	}
+	if len(patch.Metadata) > 0 {
+		d.Metadata = patch.Metadata
 	}
 	dr.mu.Unlock()
 	dr.persist()

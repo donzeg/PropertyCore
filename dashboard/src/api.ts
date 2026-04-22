@@ -99,7 +99,7 @@ export const getDevices = (): Promise<Device[]> =>
 
 export const updateDevice = (
   id: string,
-  body: Partial<Pick<Device, 'name' | 'type' | 'area_id' | 'vendor' | 'firmware_version'>>,
+  body: Partial<Pick<Device, 'name' | 'type' | 'area_id' | 'vendor' | 'firmware_version' | 'metadata'>>,
 ): Promise<Device> =>
   req<Device>(`/api/v1/devices/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
