@@ -289,6 +289,7 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
 - [x] InfluxDB recipe + time-series data pipeline — `influx.go` in engine, `meta-propertycore/recipes-propertycore/influxdb/` Yocto recipe (commit `d9ab7d7`)
 - [x] Read-only rootfs + persistent data layer — `IMAGE_FEATURES+=read-only-rootfs`, `propertycore-persist` recipe, bind-mounts `/var/lib/propertycore` + `/var/lib/influxdb` from data partition (commit `177ff60`)
 - [x] Engine v0.13: dashboard admin accounts — separate from mobile PIN users (commit `704b436`)
+- [x] Dashboard Phase 2: device config panels — ConfigSheet + RelayConfig, DimmerConfig, AcConfig, CurtainConfig, KeypadConfig, WallPanelConfig, SmartRemoteConfig; engine DeviceInfo.Metadata field; Devices.tsx Configure button wired up (commit `5aff967`)
   - `admin.go`: AdminManager, PBKDF2-HMAC-SHA256 (100k iter, pure stdlib), `admin_accounts.json`
   - `POST /api/v1/admin/login` (username+password), `POST /api/v1/admin/logout`, `GET|POST /api/v1/admin/accounts`, `DELETE /api/v1/admin/accounts/{id}`, `POST /api/v1/admin/accounts/{id}/change-password`
   - Default: admin/propertycore with `force_change_password=true` on first run

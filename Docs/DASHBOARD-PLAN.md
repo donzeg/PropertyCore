@@ -81,9 +81,12 @@ The sidebar is the visual identity of the dashboard. It must be rebuilt before a
 │  ⚡  Rules                  │
 │  ◷  Schedules               │
 ├─────────────────────────────┤
+│ ACCESS                      │
+│  👤  People                 │
+│  👥  Users                  │
+├─────────────────────────────┤
 │ HOSPITALITY                 │  ← only if property.type == "hotel"
 │  🏨  Hospitality Profile    │
-│  👥  Users                  │
 ├─────────────────────────────┤
 │ ENERGY                      │
 │  ☀️  Energy                 │
@@ -160,7 +163,7 @@ The sidebar is the visual identity of the dashboard. It must be rebuilt before a
 
 ---
 
-### Phase 2 — Device Category Config Panels
+### ✅ Phase 2 — Device Category Config Panels (commit `5aff967`)
 
 **Goal:** Engineers can configure every device type they install. These are the most important screens for a commissioning workflow.
 
@@ -380,6 +383,38 @@ Target:
 - Ring notification recipients
 - Monitor assignment (PC-INT-MON + wall panels)
 
+#### 5.5 People & Presence (`pages/access/People.tsx`)
+
+Manage persons and their device trackers. Shows live presence state for everyone associated with the property.
+
+**Presence Board (top of page):**
+- Grid of all persons — avatar/photo, name, current state badge (`home` green / `away` zinc / zone name amber)
+- Last seen timestamp per person
+- Live updates via WebSocket (`event: person_state_changed`)
+
+**Person list + CRUD:**
+- Add person: name, photo upload (cropped square)
+- Edit: rename, replace photo
+- Delete (with confirmation)
+
+**Per-person tracker config (expandable panel):**
+- List of attached trackers with type badge + current state
+- Add tracker:
+  - **Wi-Fi MAC** — enter MAC address (auto-detected hint: show MACs seen on LAN in last 24h from engine)
+  - **BLE Beacon** — enter beacon ID (PC-BLE-TAG UUID)
+  - **Mobile App** — link to a User account (that user's app will send heartbeats)
+  - **Manual** — user can set their own state from the mobile app
+- Remove tracker
+- Tracker priority note: stationary trackers (Wi-Fi/BLE) take priority over mobile/manual when state is `home`
+
+**Engine API used:**
+- `GET /api/v1/persons` — list with current state
+- `POST /api/v1/persons` — create
+- `PATCH /api/v1/persons/{id}` — rename / update photo
+- `DELETE /api/v1/persons/{id}`
+- `GET|POST|DELETE /api/v1/persons/{id}/trackers` — tracker CRUD
+- `GET /ws` — listen for `person_state_changed` events
+
 ---
 
 ### Phase 6 — Media & Entertainment
@@ -594,7 +629,7 @@ Build these first — they underpin every page:
 | 2 | Device config stored in existing device metadata (`PATCH /api/v1/devices/{id}` metadata field). No new endpoints. |
 | 3 | Scene actions model needs richer `actions` field — backwards-compatible JSON extension. Rule conditions need AND/OR groups. |
 | 4 | `GET /api/v1/energy/live` (inverter + CT clamp live data), `GET /api/v1/energy/history?from=&to=&interval=` (InfluxDB proxy), `GET|PATCH /api/v1/inverter`, `GET|PATCH /api/v1/water`, `GET|PATCH /api/v1/generator` |
-| 5 | `GET|POST|DELETE /api/v1/cameras`, `GET|POST|DELETE /api/v1/access/locks`, `GET /api/v1/access/log`, `GET|PATCH /api/v1/security/config` |
+| 5 | `GET|POST|DELETE /api/v1/cameras`, `GET|POST|DELETE /api/v1/access/locks`, `GET /api/v1/access/log`, `GET|PATCH /api/v1/security/config`, `GET|POST|PATCH|DELETE /api/v1/persons`, `GET|POST|DELETE /api/v1/persons/{id}/trackers` |
 | 6 | `GET|PATCH /api/v1/audio/zones`, `GET|PATCH /api/v1/av/rooms` |
 | 7 | `GET|PATCH /api/v1/system/network`, `GET /api/v1/system/storage`, `GET /api/v1/logs?type=&level=`, `POST /api/v1/system/backup`, `POST /api/v1/system/restore` |
 | 8 | `GET|PATCH /api/v1/hospitality/config`, `GET /api/v1/hospitality/rooms/status` |
@@ -611,7 +646,7 @@ Build these first — they underpin every page:
 | 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ⬜ Not started |
 | 3 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
 | 4 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |
-| 5 | Security | Cameras, access control, alarm zones, intercom | ⬜ Not started |
+| 5 | Security | Cameras, access control, alarm zones, intercom, people & presence | ⬜ Not started |
 | 6 | Media | Audio zones, AV/IR config, streaming services, Jellyfin | ⬜ Not started |
 | 7 | System | Network, OTA, logs, backup, notifications | ⬜ Not started |
 | 8 | Hospitality | Hotel profile, room status board | ⬜ Not started |
