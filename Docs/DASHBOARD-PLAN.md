@@ -256,7 +256,7 @@ Fields:
 
 ---
 
-### ✅ Phase 3 — Add Device Wizard + Third-Party Firmware Support (commit `TBD`)
+### ✅ Phase 3 — Add Device Wizard + Third-Party Firmware Support (commit `0f62293`)
 
 **Goal:** Engineers can onboard any device — PropertyCore firmware, Tasmota, ESPHome, Shelly, Zigbee, or Tuya — through a guided wizard. This replaces the current "devices auto-register when they connect" model with a structured commissioning flow.
 
