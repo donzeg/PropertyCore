@@ -11,6 +11,7 @@
 #include "relay.h"
 #include "nvs_config.h"
 #include "mqtt_pc.h"
+#include "provisioning.h"
 
 static const char *TAG = "main";
 
@@ -137,15 +138,21 @@ void app_main(void)
     pc_config_t cfg;
     nvs_config_init(&cfg);
 
-    // 3. Connect to Wi-Fi — blocks until an IP is obtained.
+    // 3. If no Wi-Fi credentials are stored, enter provisioning mode.
+    //    provisioning_run() never returns — it reboots the device after saving.
+    if (provisioning_needed(&cfg)) {
+        provisioning_run(&cfg);
+    }
+
+    // 4. Connect to Wi-Fi — blocks until an IP is obtained.
     wifi_init(cfg.wifi_ssid, cfg.wifi_pass);
 
 #if SWITCH_ENABLED
-    // 4. Physical wall switch inputs — interrupt-driven, debounced.
+    // 5. Physical wall switch inputs — interrupt-driven, debounced.
     switch_init();
 #endif
 
-    // 5. MQTT — connect to hub, subscribe to cmd topic, publish initial state.
+    // 6. MQTT — connect to hub, subscribe to cmd topic, publish initial state.
     mqtt_pc_config_t mqtt_cfg = {
         .broker_ip = cfg.broker_ip,
         .port      = PC_MQTT_PORT,

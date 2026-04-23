@@ -4,6 +4,7 @@ idf_component_register(
         "relay.c"
         "nvs_config.c"
         "mqtt_pc.c"
+        "provisioning.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi
@@ -13,4 +14,5 @@ idf_component_register(
         json
         esp_event
         esp_netif
+        esp_http_server
 )
