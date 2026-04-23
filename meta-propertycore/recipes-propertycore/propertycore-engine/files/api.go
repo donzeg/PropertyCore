@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -31,7 +32,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
-func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateManager, scenes *SceneManager, rules *RulesEngine, floors *FloorManager, areas *AreaManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
+func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, _ *StateManager, scenes *SceneManager, rules *RulesEngine, floors *FloorManager, areas *AreaManager, users *UserManager, scheduler *ScheduleManager, ws *WSHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		resp := statusResponse{
@@ -56,18 +57,15 @@ func makeStatusHandler(mqtt *MQTTClient, registry *DeviceRegistry, state *StateM
 	}
 }
 
-// makeDevicesHandler handles both:
-//
-//	GET /api/v1/devices      → list all devices
-//
 // makeDevicesHandler handles all device CRUD endpoints plus live state merging:
 //
-//	GET    /api/v1/devices      → list all devices (registry + live state)
-//	POST   /api/v1/devices      → register a device manually
-//	GET    /api/v1/devices/{id} → get device (registry + live state)
-//	PATCH  /api/v1/devices/{id} → update device metadata (name, area_id, etc.)
-//	DELETE /api/v1/devices/{id} → unregister device
-func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.HandlerFunc {
+//	GET    /api/v1/devices               → list all devices (registry + live state)
+//	POST   /api/v1/devices               → register a device manually
+//	GET    /api/v1/devices/{id}          → get device (registry + live state)
+//	PATCH  /api/v1/devices/{id}          → update device metadata (name, area_id, etc.)
+//	DELETE /api/v1/devices/{id}          → unregister device
+//	POST   /api/v1/devices/{id}/command  → publish command to device via MQTT
+func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQTTClient) http.HandlerFunc {
 	// deviceResponse merges registry metadata with live state for the HTTP response.
 	type deviceResponse struct {
 		ID              string                 `json:"id"`
@@ -140,6 +138,41 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager) http.Hand
 			default:
 				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 			}
+			return
+		}
+
+		// POST /api/v1/devices/{id}/command → publish payload to device cmd topic
+		if strings.HasSuffix(id, "/command") {
+			deviceID := strings.TrimSuffix(id, "/command")
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			if _, ok := registry.Get(deviceID); !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"device not found","id":%q}`, deviceID)
+				return
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil || len(body) == 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"body required"}`)
+				return
+			}
+			// Validate JSON
+			var probe map[string]interface{}
+			if err := json.Unmarshal(body, &probe); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				return
+			}
+			topic := "propertycore/devices/" + deviceID + "/cmd"
+			if err := mqtt.Publish(topic, body); err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				fmt.Fprintf(w, `{"error":"mqtt publish failed: %s"}`, err.Error())
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
@@ -1048,9 +1081,7 @@ func makeAdminAccountsHandler(am *AdminManager, sm *SessionManager) http.Handler
 		}
 
 		// Strip leading slash
-		if strings.HasPrefix(suffix, "/") {
-			suffix = suffix[1:]
-		}
+		suffix = strings.TrimPrefix(suffix, "/")
 
 		// Change-password: POST /api/v1/admin/accounts/{id}/change-password
 		if idx := strings.LastIndex(suffix, "/change-password"); idx != -1 {

@@ -106,6 +106,9 @@ export const updateDevice = (
 export const deleteDevice = (id: string): Promise<void> =>
   req<void>(`/api/v1/devices/${id}`, { method: 'DELETE' })
 
+export const sendDeviceCommand = (id: string, payload: Record<string, unknown>): Promise<void> =>
+  req<void>(`/api/v1/devices/${id}/command`, { method: 'POST', body: JSON.stringify(payload) })
+
 // ─── Scenes ──────────────────────────────────────────────────────────────────
 
 export const getScenes = (): Promise<Scene[]> =>
