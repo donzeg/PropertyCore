@@ -10,6 +10,7 @@ import KeypadConfig from './devices/KeypadConfig'
 import WallPanelConfig from './devices/WallPanelConfig'
 import SmartRemoteConfig from './devices/SmartRemoteConfig'
 import { Actions, Empty, Field, ModalFooter, Table } from './Areas'
+import AddDeviceWizard from './devices/AddDeviceWizard'
 import type { Area, Device, Scene } from '../types'
 
 // Device types that have a dedicated config panel
@@ -24,6 +25,7 @@ export default function Devices() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Device | null>(null)
   const [configuring, setConfiguring] = useState<Device | null>(null)
+  const [addWizard, setAddWizard] = useState(false)
   const [form, setForm] = useState({ name: '', area_id: '' })
   const [error, setError] = useState('')
 
@@ -90,9 +92,14 @@ export default function Devices() {
     <div className="p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Devices</h1>
-        <span className="text-sm text-zinc-400">
-          {devices.filter((d) => d.online).length} online · {devices.length} total
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-zinc-400">
+            {devices.filter((d) => d.online).length} online · {devices.length} total
+          </span>
+          <button onClick={() => setAddWizard(true)} className="btn-primary text-sm px-3 py-1.5">
+            + Add Device
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -163,6 +170,14 @@ export default function Devices() {
             <ModalFooter onCancel={() => setEditing(null)} onSave={handleSave} />
           </div>
         </Modal>
+      )}
+
+      {/* Add Device wizard */}
+      {addWizard && (
+        <AddDeviceWizard
+          onClose={() => setAddWizard(false)}
+          onDone={() => { setAddWizard(false); load() }}
+        />
       )}
 
       {/* Device-type config sheet */}

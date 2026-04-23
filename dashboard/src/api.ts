@@ -97,6 +97,15 @@ export const updateProperty = (body: Partial<Omit<Property, 'updated_at'>>): Pro
 export const getDevices = (): Promise<Device[]> =>
   req<Device[]>('/api/v1/devices')
 
+export const createDevice = (body: {
+  id: string
+  name: string
+  type: string
+  area_id?: string
+  metadata?: Record<string, unknown>
+}): Promise<Device> =>
+  req<Device>('/api/v1/devices', { method: 'POST', body: JSON.stringify(body) })
+
 export const updateDevice = (
   id: string,
   body: Partial<Pick<Device, 'name' | 'type' | 'area_id' | 'vendor' | 'firmware_version' | 'metadata'>>,

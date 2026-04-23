@@ -256,13 +256,94 @@ Fields:
 
 ---
 
-### Phase 3 — Automation Enhancement
+### ✅ Phase 3 — Add Device Wizard + Third-Party Firmware Support (commit `TBD`)
+
+**Goal:** Engineers can onboard any device — PropertyCore firmware, Tasmota, ESPHome, Shelly, Zigbee, or Tuya — through a guided wizard. This replaces the current "devices auto-register when they connect" model with a structured commissioning flow.
+
+**Deliverables:**
+
+#### 3.1 Add Device Wizard (`pages/devices/AddDeviceWizard.tsx`)
+
+A multi-step modal launched from the Devices page "Add Device" button.
+
+**Step 1 — Choose firmware type**
+- Option tiles with icon + description:
+  - 🔷 **PropertyCore Firmware** — PC-RLY, PC-DIM, PC-AC-GW, PC-CRT modules
+  - 🟠 **Tasmota** — cheap relay/switch boards from the market
+  - 🟢 **ESPHome** — dev boards, custom sensors, inverter integrations
+  - ⚪ **Shelly** — Shelly relay and dimmer modules
+  - 🔵 **Zigbee** — sensors, switches via Zigbee2MQTT
+  - 🟡 **Tuya Local** — consumer Tuya-based devices
+  - ⬛ **Other / Manual** — anything else that speaks MQTT
+
+**Step 2 — Device identity**
+- Device ID (auto-suggested: `relay-01`, `sensor-01` etc.)
+- Display name
+- Device type (select — relay / dimmer / ac_gateway / curtain / sensor / keypad / other)
+- Area assignment
+
+**Step 3 — Firmware-specific setup**
+Shows different content per firmware type:
+
+- **PropertyCore:** NVS config command block (pre-filled with hub IP + device ID). Flash guide link.
+- **Tasmota:** Generated Tasmota MQTT rule block (pre-filled). Copy button. Link to Tasmota web flasher.
+- **ESPHome:** Generated `.yaml` file (download button). `esphome run` command. Link to ESPHome web installer.
+- **Shelly:** MQTT settings screenshot + exact values to enter in Shelly web UI.
+- **Zigbee:** Zigbee2MQTT pairing mode instructions + device interview result mapping.
+- **Tuya Local:** Local key extraction guide + bridge config.
+- **Other:** Manual MQTT topic instructions.
+
+**Step 4 — Waiting for first message**
+- Live "Waiting for device…" spinner
+- Subscribes to `propertycore/devices/{id}/state` via WebSocket
+- Shows "Connected ✓" + first state payload when the device sends its first message
+- Timeout after 5 minutes with "Try again" option
+
+**Step 5 — Confirm**
+- Shows registered device card with name, type, area
+- "Done" closes wizard, device appears in list
+- "Configure Now" goes straight to the device config sheet
+
+#### 3.2 Tasmota Bridge Config Generator
+
+When Tasmota is selected, the wizard generates a ready-to-paste Tasmota MQTT rule:
+
+```
+Backlog MqttHost [hub-ip]; MqttPort 1883; MqttClient [device-id]; Topic propertycore/devices/[device-id]
+Rule1 ON Power1#State DO Publish propertycore/devices/[device-id]/state {"type":"relay","ch1":%value%} ENDON
+Rule1 1
+```
+
+Pre-fills `[hub-ip]` from `GET /status` and `[device-id]` from the entered device ID.
+
+#### 3.3 ESPHome YAML Generator
+
+Generates a downloadable `.yaml` pre-filled with:
+```yaml
+mqtt:
+  broker: [hub-ip]
+  topic_prefix: propertycore/devices/[device-id]
+  birth_message:
+    topic: propertycore/devices/[device-id]/state
+    payload: '{"type":"relay","online":true}'
+  will_message:
+    topic: propertycore/devices/[device-id]/state
+    payload: '{"type":"relay","online":false}'
+```
+
+#### 3.4 `firmware_type` in Device Metadata
+
+Store `firmware_type` in `device.metadata.firmware_type`. Engine change: accept it in `PATCH /api/v1/devices/{id}`. Dashboard displays the firmware badge on device cards.
+
+---
+
+### Phase 4 — Automation Enhancement
 
 **Goal:** Scenes, Rules, and Schedules become fully production-grade with the complete action/condition model from UI-SCOPE §13.
 
 **Deliverables:**
 
-#### 3.1 Scene Builder — full action model (`pages/Scenes.tsx` rework)
+#### 4.1 Scene Builder — full action model (`pages/Scenes.tsx` rework)
 Current: name, list of `{device_id, key, value}` actions.  
 Target:
 
@@ -276,7 +357,7 @@ Target:
 - Room scope selector (single area / whole property)
 - Test execute button (runs scene without saving)
 
-#### 3.2 Rule Builder — full condition model (`pages/Rules.tsx` rework)
+#### 4.2 Rule Builder — full condition model (`pages/Rules.tsx` rework)
 Current: single condition `{device_id, key, operator, value}`.  
 Target:
 
@@ -290,7 +371,7 @@ Target:
 - Rule testing: simulate trigger, show what would execute (dry-run mode)
 - Priority / ordering for conflicting rules
 
-#### 3.3 Schedule Builder — sunrise/sunset support (`pages/Schedules.tsx` rework)
+#### 4.3 Schedule Builder — sunrise/sunset support (`pages/Schedules.tsx` rework)
 Current: fixed HH:MM, days-of-week, scene.  
 Target:
 
@@ -627,14 +708,15 @@ Build these first — they underpin every page:
 |---|---|
 | 1 | Auth already exists. Add `GET /api/v1/property` (exists), property singleton PATCH (exists). No new endpoints. |
 | 2 | Device config stored in existing device metadata (`PATCH /api/v1/devices/{id}` metadata field). No new endpoints. |
-| 3 | Scene actions model needs richer `actions` field — backwards-compatible JSON extension. Rule conditions need AND/OR groups. |
-| 4 | `GET /api/v1/energy/live` (inverter + CT clamp live data), `GET /api/v1/energy/history?from=&to=&interval=` (InfluxDB proxy), `GET|PATCH /api/v1/inverter`, `GET|PATCH /api/v1/water`, `GET|PATCH /api/v1/generator` |
-| 5 | `GET|POST|DELETE /api/v1/cameras`, `GET|POST|DELETE /api/v1/access/locks`, `GET /api/v1/access/log`, `GET|PATCH /api/v1/security/config`, `GET|POST|PATCH|DELETE /api/v1/persons`, `GET|POST|DELETE /api/v1/persons/{id}/trackers` |
-| 6 | `GET|PATCH /api/v1/audio/zones`, `GET|PATCH /api/v1/av/rooms` |
-| 7 | `GET|PATCH /api/v1/system/network`, `GET /api/v1/system/storage`, `GET /api/v1/logs?type=&level=`, `POST /api/v1/system/backup`, `POST /api/v1/system/restore` |
-| 8 | `GET|PATCH /api/v1/hospitality/config`, `GET /api/v1/hospitality/rooms/status` |
-| 9 | `GET|POST|DELETE /api/v1/integrations`, `GET|POST|DELETE /api/v1/webhooks`, `GET /api/v1/reports/{type}?from=&to=` |
-| 10 | No new endpoints — wizard uses existing property/floors/areas/devices/scenes/users endpoints |
+| 3 | `firmware_type` in `PATCH /api/v1/devices/{id}` metadata. WebSocket event `device_registered` for wizard live detection. No other new endpoints. |
+| 4 | Scene actions model needs richer `actions` field — backwards-compatible JSON extension. Rule conditions need AND/OR groups. |
+| 5 | `GET /api/v1/energy/live` (inverter + CT clamp live data), `GET /api/v1/energy/history?from=&to=&interval=` (InfluxDB proxy), `GET|PATCH /api/v1/inverter`, `GET|PATCH /api/v1/water`, `GET|PATCH /api/v1/generator` |
+| 6 | `GET|POST|DELETE /api/v1/cameras`, `GET|POST|DELETE /api/v1/access/locks`, `GET /api/v1/access/log`, `GET|PATCH /api/v1/security/config`, `GET|POST|PATCH|DELETE /api/v1/persons`, `GET|POST|DELETE /api/v1/persons/{id}/trackers` |
+| 7 | `GET|PATCH /api/v1/audio/zones`, `GET|PATCH /api/v1/av/rooms` |
+| 8 | `GET|PATCH /api/v1/system/network`, `GET /api/v1/system/storage`, `GET /api/v1/logs?type=&level=`, `POST /api/v1/system/backup`, `POST /api/v1/system/restore` |
+| 9 | `GET|PATCH /api/v1/hospitality/config`, `GET /api/v1/hospitality/rooms/status` |
+| 10 | `GET|POST|DELETE /api/v1/integrations`, `GET|POST|DELETE /api/v1/webhooks`, `GET /api/v1/reports/{type}?from=&to=` |
+| 11 | No new endpoints — wizard uses existing property/floors/areas/devices/scenes/users endpoints |
 
 ---
 
@@ -643,12 +725,13 @@ Build these first — they underpin every page:
 | Phase | Section | Key Deliverable | Status |
 |---|---|---|---|
 | 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ✅ Complete |
-| 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ⬜ Not started |
-| 3 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
-| 4 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |
-| 5 | Security | Cameras, access control, alarm zones, intercom, people & presence | ⬜ Not started |
-| 6 | Media | Audio zones, AV/IR config, streaming services, Jellyfin | ⬜ Not started |
-| 7 | System | Network, OTA, logs, backup, notifications | ⬜ Not started |
-| 8 | Hospitality | Hotel profile, room status board | ⬜ Not started |
-| 9 | Advanced | Integrations, reporting, branding, multi-site, visitor management | ⬜ Not started |
-| 10 | Wizard | First-run setup wizard — ties all phases together | ⬜ Not started |
+| 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ✅ Complete |
+| 3 | Add Device | Add Device wizard — Tasmota/ESPHome/Shelly/Zigbee/Tuya/PropertyCore onboarding + generated configs | ⬜ Not started |
+| 4 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
+| 5 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |
+| 6 | Security | Cameras, access control, alarm zones, intercom, people & presence | ⬜ Not started |
+| 7 | Media | Audio zones, AV/IR config, streaming services, Jellyfin | ⬜ Not started |
+| 8 | System | Network, OTA, logs, backup, notifications | ⬜ Not started |
+| 9 | Hospitality | Hotel profile, room status board | ⬜ Not started |
+| 10 | Advanced | Integrations, reporting, branding, multi-site, visitor management | ⬜ Not started |
+| 11 | Wizard | First-run setup wizard — ties all phases together | ⬜ Not started |
