@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { deleteDevice, getAreas, getDevices, getScenes, updateDevice } from '../api'
+import { useEffect, useRef, useState } from 'react'
+import { deleteDevice, getAreas, getDevices, getScenes, getWsUrl, updateDevice } from '../api'
 import Modal from '../components/Modal'
 import ConfigSheet from '../components/ConfigSheet'
 import RelayConfig from './devices/RelayConfig'
@@ -35,6 +35,26 @@ export default function Devices() {
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
+
+  // Live updates — patch last_seen + online whenever a device_state WS event arrives
+  const wsRef = useRef<WebSocket | null>(null)
+  useEffect(() => {
+    const ws = new WebSocket(getWsUrl())
+    wsRef.current = ws
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.event === 'device_state' && msg.data?.id) {
+          setDevices((prev) => prev.map((d) =>
+            d.id === msg.data.id
+              ? { ...d, online: msg.data.online ?? d.online, last_seen: msg.data.last_seen ?? d.last_seen }
+              : d
+          ))
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    return () => ws.close()
+  }, [])
 
   const openEdit = (d: Device) => {
     setForm({ name: d.name, area_id: d.area_id || '' })
