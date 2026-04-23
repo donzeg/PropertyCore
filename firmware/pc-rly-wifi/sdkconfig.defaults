@@ -21,3 +21,7 @@ CONFIG_BT_ENABLED=n
 
 # Log level — INFO in production (change to DEBUG for development)
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Crystal frequency — ESP-WROOM-32 uses 40MHz crystal
+CONFIG_ESP32_XTAL_FREQ_40=y
+CONFIG_ESP32_XTAL_FREQ=40

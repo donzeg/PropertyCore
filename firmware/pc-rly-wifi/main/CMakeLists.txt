@@ -10,7 +10,7 @@ idf_component_register(
         mqtt
         nvs_flash
         driver
-        cJSON
+        json
         esp_event
         esp_netif
 )
