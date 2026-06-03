@@ -1,0 +1,314 @@
+import { useEffect, useState } from 'react'
+import { WarningCircle, ArrowSquareOut, CheckCircle, WifiHigh } from '@phosphor-icons/react'
+
+// Tell TypeScript about the custom element injected by esp-web-tools
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'esp-web-install-button': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & { manifest: string },
+        HTMLElement
+      >
+    }
+  }
+}
+
+interface SkuCard {
+  sku: string
+  label: string
+  channels: number
+  description: string
+  manifest: string
+  useCases: string
+}
+
+const SKUS: SkuCard[] = [
+  {
+    sku: 'PC-RLY-1CH-W',
+    label: '1-Channel Relay',
+    channels: 1,
+    description: 'Single load control — lighting, fan, or appliance.',
+    manifest: 'firmware/manifest-1ch.json',
+    useCases: 'Single light, ceiling fan, water pump',
+  },
+  {
+    sku: 'PC-RLY-2CH-W',
+    label: '2-Channel Relay',
+    channels: 2,
+    description: 'Two independent loads on one module.',
+    manifest: 'firmware/manifest-2ch.json',
+    useCases: 'Two lights, bedside lamps, bathroom + mirror',
+  },
+  {
+    sku: 'PC-RLY-4CH-W',
+    label: '4-Channel Relay',
+    channels: 4,
+    description: 'Four independent loads — most common room module.',
+    manifest: 'firmware/manifest-4ch.json',
+    useCases: 'Living room lighting zones, hotel room circuits',
+  },
+  {
+    sku: 'PC-RLY-6CH-W',
+    label: '6-Channel Relay',
+    channels: 6,
+    description: 'Six independent loads for larger spaces.',
+    manifest: 'firmware/manifest-6ch.json',
+    useCases: 'Open-plan lighting, multi-zone curtain + light combos',
+  },
+]
+
+const NVS_STEPS = [
+  {
+    title: 'Open Serial Monitor',
+    content: (
+      <>
+        In a terminal (with ESP-IDF sourced), run:{' '}
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono">
+          idf.py -p /dev/ttyUSB0 monitor
+        </code>
+      </>
+    ),
+  },
+  {
+    title: 'Wait for boot log',
+    content:
+      'The device will print its boot log and end with "NVS keys not set — using compile-time defaults". You can now send NVS commands.',
+  },
+  {
+    title: 'Set device ID',
+    content: (
+      <>
+        Type and press Enter:{' '}
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono">
+          set_nvs device_id relay-bedroom-01
+        </code>
+        <br />
+        <span className="text-zinc-500 text-xs">Use a unique ID per device (no spaces).</span>
+      </>
+    ),
+  },
+  {
+    title: 'Set Wi-Fi credentials',
+    content: (
+      <>
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono block mb-1">
+          set_nvs wifi_ssid YourNetworkName
+        </code>
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono block">
+          set_nvs wifi_pass YourPassword
+        </code>
+      </>
+    ),
+  },
+  {
+    title: 'Set MQTT broker IP',
+    content: (
+      <>
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono">
+          set_nvs broker_ip 192.168.1.100
+        </code>
+        <br />
+        <span className="text-zinc-500 text-xs">Use the hub's LAN IP address.</span>
+      </>
+    ),
+  },
+  {
+    title: 'Reboot',
+    content: (
+      <>
+        <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono">
+          restart
+        </code>
+        <span className="text-zinc-500 text-xs ml-2">
+          or press the reset button on the board.
+        </span>
+        <br />
+        <span className="text-zinc-500 text-xs">
+          The device will connect to Wi-Fi, connect to MQTT, and appear in Devices automatically.
+        </span>
+      </>
+    ),
+  },
+]
+
+function ChromeWarning() {
+  const isChrome =
+    /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor)
+
+  if (isChrome) return null
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-600 dark:bg-amber-900/20">
+      <WarningCircle size={20} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <div>
+        <p className="font-medium text-amber-800 dark:text-amber-300">
+          Google Chrome required
+        </p>
+        <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-400">
+          ESP Web Tools uses the Web Serial API which is only supported in Chrome and Edge. Open
+          this page in Chrome to flash devices.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function SkuCardRow({ sku }: { sku: SkuCard }) {
+  const dots = Array.from({ length: sku.channels }, (_, i) => i)
+
+  return (
+    <div className="card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Left — info */}
+      <div className="flex items-start gap-4">
+        {/* Channel dots */}
+        <div className="flex flex-col gap-1 pt-1">
+          {dots.map((d) => (
+            <span
+              key={d}
+              className="h-3 w-3 rounded-full bg-emerald-500 dark:bg-emerald-400"
+              title={`Channel ${d + 1}`}
+            />
+          ))}
+        </div>
+        <div>
+          <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{sku.sku}</p>
+          <p className="font-semibold text-zinc-900 dark:text-zinc-100">{sku.label}</p>
+          <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{sku.description}</p>
+          <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+            <WifiHigh size={12} className="inline mr-1 -mt-0.5" />
+            {sku.useCases}
+          </p>
+        </div>
+      </div>
+
+      {/* Right — flash button */}
+      <div className="shrink-0">
+        {/* @ts-ignore — custom element from esp-web-tools */}
+        <esp-web-install-button manifest={sku.manifest}>
+          <button
+            slot="activate"
+            className="btn-primary whitespace-nowrap"
+          >
+            Flash {sku.sku}
+          </button>
+          <span slot="unsupported" className="text-sm text-zinc-400">
+            Web Serial not supported in this browser
+          </span>
+        </esp-web-install-button>
+      </div>
+    </div>
+  )
+}
+
+function NvsSetup() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <section>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+      >
+        <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+          After flashing — configure the device
+        </span>
+        <span className="text-sm text-zinc-500">{open ? 'Hide' : 'Show steps'}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+          <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+            After flashing, the device will boot with default settings. You must set a unique
+            device ID, Wi-Fi credentials, and the hub's broker IP via the serial console. These
+            values are stored in NVS (non-volatile storage) and survive firmware updates.
+          </p>
+          <ol className="space-y-4">
+            {NVS_STEPS.map((step, idx) => (
+              <li key={idx} className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                  {idx + 1}
+                </span>
+                <div>
+                  <p className="font-medium text-zinc-800 dark:text-zinc-200">{step.title}</p>
+                  <div className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                    {step.content}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4 flex items-start gap-2 rounded bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+            <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              Once rebooted, the device connects to MQTT and auto-registers in the Devices page
+              within a few seconds.
+            </p>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+export default function FirmwareFlash() {
+  const [scriptLoaded, setScriptLoaded] = useState(false)
+
+  useEffect(() => {
+    if (document.querySelector('script[data-esp-web-tools]')) {
+      setScriptLoaded(true)
+      return
+    }
+    const script = document.createElement('script')
+    script.type = 'module'
+    script.src = 'https://unpkg.com/esp-web-tools@10/dist/web/install-button.js'
+    script.setAttribute('data-esp-web-tools', 'true')
+    script.onload = () => setScriptLoaded(true)
+    document.head.appendChild(script)
+  }, [])
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Firmware Flash</h1>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Flash PropertyCore firmware to ESP32 relay modules via USB.
+          Connect the device to this computer before clicking Flash.
+        </p>
+      </div>
+
+      {/* Chrome requirement banner */}
+      <ChromeWarning />
+
+      {/* Connection instructions */}
+      <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <ArrowSquareOut size={18} className="mt-0.5 shrink-0 text-zinc-500" />
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Connect the ESP32 board via USB. Hold the{' '}
+          <span className="font-medium">BOOT</span> button while clicking Flash, then release
+          it when prompted. The flash process takes ~30 seconds.
+        </p>
+      </div>
+
+      {/* SKU cards */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+          Select firmware variant
+        </h2>
+        {SKUS.map((sku) => (
+          <SkuCardRow key={sku.sku} sku={sku} />
+        ))}
+      </section>
+
+      {/* Post-flash NVS config */}
+      <NvsSetup />
+
+      {/* Loader note */}
+      {!scriptLoaded && (
+        <p className="text-xs text-zinc-400 dark:text-zinc-600">
+          Loading ESP Web Tools…
+        </p>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,15 @@
+{
+  "name": "PropertyCore PC-RLY-1CH-W",
+  "version": "0.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "bootloader-1ch.bin",      "offset": 4096 },
+        { "path": "partition-table-1ch.bin", "offset": 32768 },
+        { "path": "pc-rly-1ch.bin",          "offset": 65536 }
+      ]
+    }
+  ]
+}

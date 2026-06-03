@@ -29,6 +29,7 @@ import {
   Moon,
   WifiHigh,
   X,
+  FloppyDisk,
 } from '@phosphor-icons/react'
 import { getStatus, getProperty, getWsUrl } from '../api'
 import { useTheme } from '../App'
@@ -119,12 +120,13 @@ const FUTURE_SECTIONS: NavSection[] = [
   {
     heading: 'System',
     items: [
-      { to: 'notifications', label: 'Notifications', icon: Bell,           live: false },
-      { to: 'ota',           label: 'OTA Updates',   icon: ArrowsClockwise,live: false },
-      { to: 'logs',          label: 'Logs',          icon: ClipboardText,  live: false },
-      { to: 'backup',        label: 'Backup',        icon: Package,        live: false },
-      { to: 'integrations',  label: 'Integrations',  icon: Plug,           live: false },
-      { to: 'api',           label: 'API Keys',      icon: Key,            live: false },
+      { to: 'firmware-flash', label: 'Firmware Flash', icon: FloppyDisk,     live: true  },
+      { to: 'notifications',  label: 'Notifications',  icon: Bell,           live: false },
+      { to: 'ota',            label: 'OTA Updates',    icon: ArrowsClockwise,live: false },
+      { to: 'logs',           label: 'Logs',           icon: ClipboardText,  live: false },
+      { to: 'backup',         label: 'Backup',         icon: Package,        live: false },
+      { to: 'integrations',   label: 'Integrations',   icon: Plug,           live: false },
+      { to: 'api',            label: 'API Keys',       icon: Key,            live: false },
     ],
   },
 ]

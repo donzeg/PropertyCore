@@ -3,14 +3,14 @@
 // ─── MQTT ─────────────────────────────────────────────────────────────────────
 // Default broker IP — must match the PropertyCore Hub on the local network.
 // Each deployed unit should have this set correctly in NVS.
-#define PC_MQTT_BROKER_DEFAULT  "192.168.31.223"
+#define PC_MQTT_BROKER_DEFAULT  ""  // set via NVS: nvs key "broker_ip"
 #define PC_MQTT_PORT            1883
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
 // Unique device ID for this unit. Must be unique across the installation.
 // Set the correct value in NVS before deployment (key: "device_id").
 // Format: relay-XX where XX is a zero-padded number, e.g. "relay-01".
-#define PC_DEVICE_ID_DEFAULT    "devkit-01"
+#define PC_DEVICE_ID_DEFAULT    ""  // set via NVS: nvs key "device_id"
 
 // ─── Wi-Fi ────────────────────────────────────────────────────────────────────
 // Leave both blank to enable provisioning mode on first boot.
@@ -33,7 +33,7 @@
 //   PC-RLY-2CH-W = 2
 //   PC-RLY-4CH-W = 4  (default)
 //   PC-RLY-6CH-W = 6
-#define RELAY_CHANNEL_COUNT  1  // bare DevKit — use GPIO2 (onboard LED) as relay output
+#define RELAY_CHANNEL_COUNT  4  // PC-RLY-4CH-W (default)
 
 // ─── Relay GPIO Assignments ───────────────────────────────────────────────────
 // Adjust to match your OEM board. The values below are typical for
@@ -42,9 +42,9 @@
 // Active-low: relay coil energises when GPIO is driven LOW (common for
 // optocoupler-isolated relay boards). Set RELAY_ACTIVE_LOW to 0 for
 // active-high boards.
-#define RELAY_ACTIVE_LOW  0  // DevKit LED is active-high
+#define RELAY_ACTIVE_LOW  1  // LC Technology boards are active-low
 
-#define RELAY_CH1_GPIO   2   // onboard LED on most ESP32 DevKits
+#define RELAY_CH1_GPIO   16
 #define RELAY_CH2_GPIO   17
 #define RELAY_CH3_GPIO   18
 #define RELAY_CH4_GPIO   19
@@ -59,7 +59,7 @@
 //
 // NOTE: GPIO 34, 35, 36, 39 on ESP32 are input-only and have no internal
 // pull resistors. The board must provide external 10k pull-ups on these pins.
-#define SWITCH_ENABLED    0  // no physical switches on bare DevKit
+#define SWITCH_ENABLED    1  // set to 0 to disable switch inputs
 
 #define SWITCH_CH1_GPIO   34
 #define SWITCH_CH2_GPIO   35

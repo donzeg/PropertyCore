@@ -11,6 +11,7 @@ import Rules from './pages/Rules'
 import Schedules from './pages/Schedules'
 import Users from './pages/Users'
 import PropertyPage from './pages/Property'
+import FirmwareFlash from './pages/system/FirmwareFlash'
 
 // ─── Theme context ────────────────────────────────────────────────────────────
 
@@ -106,8 +107,9 @@ export default function App() {
             <Route path="devices"   element={<Devices />} />
             <Route path="scenes"    element={<Scenes />} />
             <Route path="rules"     element={<Rules />} />
-            <Route path="schedules" element={<Schedules />} />
-            <Route path="users"     element={<Users />} />
+            <Route path="schedules"      element={<Schedules />} />
+            <Route path="users"          element={<Users />} />
+            <Route path="firmware-flash" element={<FirmwareFlash />} />
           </Route>
         </Routes>
       </BrowserRouter>
