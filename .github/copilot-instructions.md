@@ -294,6 +294,19 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
   - `POST /api/v1/admin/login` (username+password), `POST /api/v1/admin/logout`, `GET|POST /api/v1/admin/accounts`, `DELETE /api/v1/admin/accounts/{id}`, `POST /api/v1/admin/accounts/{id}/change-password`
   - Default: admin/propertycore with `force_change_password=true` on first run
   - Dashboard Login.tsx: username + password form, `pc-admin-token` in localStorage
+- [x] Engine v0.14.0 + full fix batch — 14 issues from codebase review resolved (commit `148f603`)
+  - `auth.go`: SessionManager 24h TTL + background cleanup goroutine (FIX-008)
+  - `api.go`: `requireAdminAuth` + `withBodyLimit` middleware; all 14 raw Go error strings replaced with generic messages; `area_ids` comment fixed (FIX-001, FIX-012, FIX-013, FIX-015)
+  - `main.go`: all `/api/v1/*` protected routes wrapped; public routes (`/health`, `/status`, `/ws`, `/api/v1/auth/*`, `/api/v1/admin/login|logout`) remain open
+  - `rule.go`: accepts `"neq"` as alias for `"ne"` (FIX-002)
+  - `influx.go`: field keys sanitized via `sanitizeInfluxTag()` in `WriteDeviceState` (FIX-003)
+  - `user.go`: PINs hashed with PBKDF2-HMAC-SHA256; migration-safe `FindByPIN()` (FIX-004)
+  - `Rules.tsx`: operator value corrected to `"ne"` (FIX-002)
+  - `AddDeviceWizard.tsx`: hardcoded `192.168.31.223` fallback removed (FIX-005)
+  - `Login.tsx`: 5-attempt lockout + 5-min cooldown; default credentials hint removed (FIX-006, FIX-011)
+  - `App.tsx` `RequireAuth`: 30-min idle auto-logout on mouse/key/touch/scroll events (FIX-007)
+  - `Overview.tsx`: `ws.onerror = () => ws.close()` added (FIX-009)
+  - `Devices.tsx`: `confirm()` replaced with `<Modal>` confirmation dialog (FIX-016)
 - [ ] OTA update mechanism (Mender or RAUC)
 - [ ] RPi5 image verification on physical hardware
 
@@ -419,43 +432,16 @@ This process applies to every UI build session without exception.
 
 ## Known Issues & Fix Backlog
 
-> Full list lives in `FIXES.md` at the project root. **Always check `FIXES.md` before starting engine or dashboard work** — the items below are pre-conditions for production readiness.
+> Full list lives in `FIXES.md` at the project root. **Always check `FIXES.md` before starting engine or dashboard work.**
 
-### Critical (must fix before any deployment)
+### Still open
 | ID | Component | Issue |
 |---|---|---|
-| FIX-001 | `api.go` | **All `/api/v1/*` endpoints have NO auth** — `makeDevicesHandler`, `makeScenesHandler`, `makeRulesHandler`, `makeAreasHandler`, `makeFloorsHandler`, `makePropertyHandler`, `makeUsersHandler`, `makeSchedulesHandler` never validate the Bearer token. Only `makeAdminAccountsHandler` checks auth. Add `requireAdminAuth(adminSessions, next)` middleware in `main.go` for all protected routes. |
-| FIX-002 | `rule.go` / `types.ts` | **Rule operator mismatch** — dashboard sends `"neq"`, engine expects `"ne"`. Rules using not-equal silently never fire. Fix by accepting both in `rule.go` or align `types.ts`. |
-
-### High
-| ID | Component | Issue |
-|---|---|---|
-| FIX-003 | `influx.go` | InfluxDB **field keys not sanitized** — device MQTT payloads with spaces/commas/equals in keys produce invalid line protocol. Wrap field key `k` with `sanitizeInfluxTag(k)` in `WriteDeviceState` loop. |
-| FIX-004 | `user.go` | **User PINs stored as plaintext** in `users.json`. Reuse `hashAdminPassword()` / `checkAdminPassword()` from `admin.go` — hash on `Add()`/`Update()`, compare in `FindByPIN()`. Handle migration for existing plain-text entries. |
-| FIX-005 | `AddDeviceWizard.tsx` | **Hardcoded ThinkPad IP** `192.168.31.223` as localhost fallback. Derive hub IP from `GET /status` instead. |
-
-### Medium (plan spec gaps)
-| ID | Component | Issue |
-|---|---|---|
-| FIX-006 | `Login.tsx` + `api.go` | Phase 1 spec requires **5-attempt lockout** — not implemented in dashboard or engine. |
-| FIX-007 | `App.tsx` | Phase 1 spec requires **30-min idle auto-logout** — not implemented. |
-| FIX-008 | `auth.go` | **Session tokens never expire** — add TTL (24h) to `SessionManager`. |
-| FIX-009 | `Overview.tsx` | **WebSocket `onerror` not handled** — add `ws.onerror = () => ws.close()` to force reconnect path. |
 | FIX-010 | `Layout.tsx` | Phase 1 spec requires **dynamic per-device-type nav items** — sidebar has only a static "Devices" item. Derive from `GET /api/v1/devices` type set. |
-
-### Low
-| ID | Component | Issue |
-|---|---|---|
-| FIX-011 | `Login.tsx` | Default credentials hint (`admin / propertycore`) visible to any LAN visitor. Remove or gate on `force_change_password`. |
-| FIX-012 | `api.go` | No `http.MaxBytesReader` on request bodies — add 1 MB limit to prevent memory abuse. |
-| FIX-013 | `api.go` | Error responses include raw Go error strings — replace with generic messages, log detail server-side. |
 | FIX-014 | `files/propertycore-engine` | Pre-built binary committed to git — add to `.gitignore`. |
-| FIX-015 | `api.go` | `makeAuthHandler` comment still says `room_ids` — rename to `area_ids`. |
-| FIX-016 | `Devices.tsx` | `handleDelete` uses `window.confirm()` — replace with `<Modal>` for consistency. |
 
-### Recommended engine version scope
-- **v0.14** — FIX-001, FIX-003, FIX-004, FIX-008, FIX-012, FIX-013, FIX-015 (all engine-side)
-- **Dashboard patch** — FIX-002, FIX-005, FIX-006, FIX-007, FIX-009, FIX-010, FIX-011, FIX-016
+### Resolved (engine v0.14.0 + dashboard patch, commit `148f603`)
+FIX-001, FIX-002, FIX-003, FIX-004, FIX-005, FIX-006, FIX-007, FIX-008, FIX-009, FIX-011, FIX-012, FIX-013, FIX-015, FIX-016 — see `FIXES.md` for details.
 
 ---
 
