@@ -24,7 +24,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
                                 int32_t id, void *data)
 {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGW(TAG, "Wi-Fi disconnected, retrying");
+        wifi_event_sta_disconnected_t *d = data;
+        ESP_LOGW(TAG, "Wi-Fi disconnected, reason: %d, retrying", d->reason);
         esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *e = data;
@@ -49,6 +50,9 @@ static void wifi_init(const char *ssid, const char *pass)
     wifi_config_t wifi_cfg = {0};
     strncpy((char *)wifi_cfg.sta.ssid,     ssid, sizeof(wifi_cfg.sta.ssid) - 1);
     strncpy((char *)wifi_cfg.sta.password, pass, sizeof(wifi_cfg.sta.password) - 1);
+    // PMF: advertise capability but don't require it — compatible with WPA2/WPA3 mixed APs.
+    wifi_cfg.sta.pmf_cfg.capable  = true;
+    wifi_cfg.sta.pmf_cfg.required = false;
 
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
