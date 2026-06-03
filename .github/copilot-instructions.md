@@ -294,6 +294,14 @@ Configurable via env vars `INFLUXDB_URL` (default `http://localhost:8086`) and `
   - `POST /api/v1/admin/login` (username+password), `POST /api/v1/admin/logout`, `GET|POST /api/v1/admin/accounts`, `DELETE /api/v1/admin/accounts/{id}`, `POST /api/v1/admin/accounts/{id}/change-password`
   - Default: admin/propertycore with `force_change_password=true` on first run
   - Dashboard Login.tsx: username + password form, `pc-admin-token` in localStorage
+- [x] Engine v0.15.0 + Dashboard Phase 4 — Automation Enhancement (commit `5afda66`)
+  - `scene.go`: icon, area scope, action types (`device_state`/`run_scene`/`delay`), `SceneManager.Update()`, recursive Execute()
+  - `rule.go`: AND/OR multi-clause conditions (`device_state`/`time_of_day`/`day_of_week`), `RulesEngine.Update()`, `matchClauses/Time/Day` helpers
+  - `scheduler.go`: `trigger_type` (`fixed`/`sunrise`/`sunset`), `sunrise_offset_min`
+  - `api.go`: `PATCH /api/v1/scenes/{id}` + `PATCH /api/v1/rules/{id}`; auto-default `action.Type="scene"`; relaxed validation for multi-clause rules
+  - `Yocto`: `propertycore-engine_0.15.bb`
+  - `dashboard`: Scenes.tsx fully reworked (icon picker, per-device payload builders, action chaining, reorder); Rules.tsx (AND/OR clause builder, time/day conditions, edit); Schedules.tsx (trigger type selector, sunrise offset, next-5-triggers preview, edit)
+  - fixes: rule `name` field (was `label`), action `type` always sent in payload
 - [x] Engine v0.14.0 + full fix batch — 14 issues from codebase review resolved (commit `148f603`)
   - `auth.go`: SessionManager 24h TTL + background cleanup goroutine (FIX-008)
   - `api.go`: `requireAdminAuth` + `withBodyLimit` middleware; all 14 raw Go error strings replaced with generic messages; `area_ids` comment fixed (FIX-001, FIX-012, FIX-013, FIX-015)
