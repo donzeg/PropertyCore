@@ -720,13 +720,84 @@ Build these first — they underpin every page:
 
 ---
 
+## Post-Phase-3 Incremental Fixes & Enhancements
+
+### Device Online/Offline Tracking (April 23 2026)
+- **Bug fixed:** Engine `MarkSeen()` was unconditionally setting `Online=true`, overriding the firmware LWT (`{"online":false}`). Devices never went offline after disconnect.
+- **Fix — engine `device.go`:** `MarkSeen()` now returns `(isNew bool, cameOnline bool)`. Checks `wasOffline` before setting `Online=true`.
+- **Fix — engine `main.go`:** `OnUpdate` callback now checks for `"online":false` in the MQTT payload first. If found → calls `MarkOffline()` + broadcasts `device_offline` WS event and returns early. If device was previously offline and now reconnected → broadcasts `device_online` WS event.
+- **Fix — dashboard `Devices.tsx`:** WebSocket handler now reacts to `device_offline` (flip dot grey instantly) and `device_online` (flip dot green instantly). Removed incorrect `online` field update from `device_state` events (state payloads don’t carry online status).
+- **Note:** `devkit-01` registry entry is a phantom from early testing — no physical board behind it. Delete it from the dashboard. Only `relay-02` has a real physical board.
+
+### New Device Detected Banner (April 23 2026)
+- **Engine `main.go`:** When `MarkSeen()` returns `isNew=true`, broadcasts `device_new` WS event with full `DeviceInfo` payload.
+- **Dashboard `Layout.tsx`:** Persistent WS listener (app-level, not page-level). On `device_new` event, shows dismissable green banner above all page content: *“New device detected: [id] — Set it up →”*. Clicking navigates to Devices page. Multiple banners stack. Duplicates filtered.
+
+---
+
+## Design Reference: Home Assistant Architecture (April 2026 Research)
+
+> Studied by SSH into live HA instance. Custom components, automations, scripts, config flows, and integration manifests read directly. Key patterns to apply to PropertyCore.
+
+### Core concepts mapped to PropertyCore
+
+| HA Concept | Description | PropertyCore Equivalent |
+|---|---|---|
+| **Entity** | A single controllable thing (a light, sensor, switch) | A device channel (ch1, ch2, temp_c…) |
+| **Integration / Domain** | Plugin that speaks a protocol | Bridge service (pc-bridge-tuya, pc-bridge-tasmota…) |
+| **Config Entry** | Persisted setup data for one integration | Device record in `devices.json` |
+| **Config Flow** | Multi-step setup wizard | Add Device Wizard (Phase 3) |
+| **State Machine** | Central `entity_id → state + attributes` dict | `StateManager` (in-memory MQTT state) |
+| **Event Bus** | Pub/sub for all state changes + triggers | MQTT broker + WebSocket broadcast |
+| **Service** | A callable action (turn_on, set_temperature) | MQTT command to `propertycore/devices/{id}/cmd` |
+| **Automation** | trigger → condition → action | Rules engine |
+| **Blueprint** | Reusable automation template with variables | Not built yet — future phase |
+| **Scene** | Snapshot of entity states to restore | Scene engine (built) |
+| **Template sensor** | Calculated value derived from other sensors | Virtual sensors — useful for Energy dashboard |
+
+### HA integration file structure (standard pattern)
+```
+custom_components/localtuya/
+  manifest.json      ← domain, requirements, iot_class, dependencies
+  config_flow.py     ← setup wizard (async step functions)
+  __init__.py        ← async_setup_entry() — wires everything up
+  const.py           ← domain constants
+  sensor.py          ← sensor platform
+  switch.py          ← switch platform
+  discovery.py       ← network scan logic
+```
+
+### Patterns to adopt in PropertyCore
+
+1. **`iot_class` label** — tag each device as `local_push` / `local_polling` / `cloud_push` / `cloud_polling`. Show in device cards and config panel.
+2. **Blueprint system** — reusable automation packages. An engineer publishes a "hotel room" blueprint; another install imports it. Phase 9+.
+3. **Virtual / template sensors** — derived metrics (e.g. Prepaid Units Left = purchased units − grid import since last reset). Critical for Energy dashboard.
+4. **AppDaemon-style scripting sidecar** — Python/JS scripting environment that calls the engine API, for power integrators who need logic beyond the rules engine.
+5. **Solarman protocol** — direct TCP to DEYE data logger (no ESPHome bridge needed). The `pysolarmanv5` library speaks this. Simpler path for inverter integration.
+6. **Broadlink IR blaster** — your HA uses `remote.send_command` via Broadlink. PropertyCore IR control can follow the same pattern: IR device + command library per appliance brand.
+
+### Your live HA setup (reference installation)
+- **DEYE inverter** — ESPHome Modbus RS485 (`deye-home.yaml`, ESP32, UART tx=17/rx=16, flow=4, baud 9600, Modbus addr 0x01)
+- **Tuya devices** — via `localtuya` (local key extraction, no cloud)
+- **Shelly** — via `shelly` custom component (mDNS + MQTT)
+- **Xiaomi lights** — `xiaomi_miot`, bed_01–04 (RGB + color temp)
+- **Broadlink IR** — controlling Livingroom_AC via IR blaster
+- **Solcast** — solar forecast integration
+- **Solarman** — alternative DEYE logger protocol (direct TCP)
+- **Prepaid units tracking** — template sensors tracking grid import vs. purchased units
+- **AI Agent** — custom panel + LLM conversation agent
+- **Scenes** — "night sleep", "Master Bed night" (lighting moods)
+- **Automations** — load shedding management, telegram notifications
+
+---
+
 ## Phase Summary
 
 | Phase | Section | Key Deliverable | Status |
 |---|---|---|---|
 | 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ✅ Complete |
 | 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ✅ Complete |
-| 3 | Add Device | Add Device wizard — Tasmota/ESPHome/Shelly/Zigbee/Tuya/PropertyCore onboarding + generated configs | ⬜ Not started |
+| 3 | Add Device | Add Device wizard — Tasmota/ESPHome/Shelly/Zigbee/Tuya/PropertyCore onboarding + generated configs | ✅ Complete (commit `0f62293`) |
 | 4 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
 | 5 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |
 | 6 | Security | Cameras, access control, alarm zones, intercom, people & presence | ⬜ Not started |

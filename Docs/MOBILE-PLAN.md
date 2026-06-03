@@ -204,6 +204,28 @@ class Lock { String id, name, areaId; bool locked; DateTime? lastEvent; }
 class VisitorEvent { String who, door; DateTime time; String? snapshotUrl; }
 ```
 
+#### 4.3 People & Presence (`screens/access_screen.dart` — People tab or section)
+
+Shows who is currently home or away. The mobile app itself reports presence as a device tracker for the linked user.
+
+- **Who's home section** — horizontal scrolling row of person chips at the top of the Access screen
+  - Each chip: circular avatar (initials or photo) + name + state badge (`home` green / `away` zinc / zone name amber)
+  - Last seen time shown below name
+  - Tap → person detail sheet: full state history (today), tracker list
+- **Self-report presence** — "I'm home" / "I'm away" buttons for the current user (manual tracker)
+- **App auto-tracking** — on login, the app registers itself as a `mobile_app` tracker for the linked user. Sends a `POST /api/v1/persons/{id}/trackers/{tracker_id}/heartbeat` every 5 minutes while the app is running (foreground or background via WorkManager / Background Fetch). Hub sets state to `away` if no heartbeat received for 15 minutes.
+- Live updates via WebSocket `person_state_changed` event
+
+#### 4.4 Model additions for presence
+```dart
+class Person {
+  String id, name;
+  String state; // "home" | "away" | zone name
+  DateTime? lastSeen;
+  String? photoUrl;
+}
+```
+
 ---
 
 ### Phase 5 — Cameras Screen
@@ -420,7 +442,7 @@ When `property.type == "hotel"` and user role is guest/staff:
 | 1 | Device card type routing. `DeviceState` typed getters for relay/dimmer/AC/curtain. |
 | 2 | No new models — reuse Phase 1 cards in list view. Add `AppState.loadClimate()`. |
 | 3 | `EnergyLive`, `EnergyHistory`, `CircuitReading`. |
-| 4 | `Lock`, `VisitorEvent`, `Gate`. |
+| 4 | `Lock`, `VisitorEvent`, `Gate`, `Person`. |
 | 5 | `Camera`, `MotionClip`. |
 | 6 | `AudioZone`, `MediaTrack`, `TvRoom`, `JellyfinItem`. |
 | 7 | `WaterStatus`, `GeneratorStatus`. |
@@ -439,7 +461,7 @@ When `property.type == "hotel"` and user role is guest/staff:
 | 1 | None — uses existing `PATCH /api/v1/devices/{id}` + MQTT publish |
 | 2 | None — derives from existing device list |
 | 3 | `GET /api/v1/energy/live`, `GET /api/v1/energy/history` |
-| 4 | `GET /api/v1/access/locks`, `POST /api/v1/access/locks/{id}/toggle`, `GET /api/v1/access/log`, `POST /api/v1/access/gate/{id}/open` |
+| 4 | `GET /api/v1/access/locks`, `POST /api/v1/access/locks/{id}/toggle`, `GET /api/v1/access/log`, `POST /api/v1/access/gate/{id}/open`, `GET /api/v1/persons`, `POST /api/v1/persons/{id}/trackers/{tracker_id}/heartbeat` |
 | 5 | `GET /api/v1/cameras`, `GET /api/v1/cameras/{id}/stream` (proxy URL) |
 | 6 | `GET /api/v1/audio/zones`, `PATCH /api/v1/audio/zones/{id}`, `GET /api/v1/media/now-playing`, `POST /api/v1/media/control` |
 | 7 | `GET /api/v1/water/status`, `GET /api/v1/generator/status` |
@@ -470,7 +492,7 @@ When `property.type == "hotel"` and user role is guest/staff:
 | 1 | Room Controls | Device-type-aware cards: relay, AC, dimmer, curtain | ⬜ Not started |
 | 2 | Climate + Lighting | Dedicated property-wide tabs | ⬜ Not started |
 | 3 | Energy | Power flow, battery, solar, per-circuit — InfluxDB charts | ⬜ Not started |
-| 4 | Access Control | Gate, locks, visitor log, doorbell answer | ⬜ Not started |
+| 4 | Access Control | Gate, locks, visitor log, doorbell answer, people presence | ⬜ Not started |
 | 5 | Cameras | Live feed grid, motion clips, full-screen view | ⬜ Not started |
 | 6 | Entertainment | Multi-room audio, TV control, Spotify, Jellyfin | ⬜ Not started |
 | 7 | Infrastructure | Water tank, pump, generator status | ⬜ Not started |

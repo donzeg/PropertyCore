@@ -29,6 +29,7 @@ export default function Overview() {
           setTimeout(connect, 3000)
         }
       }
+      ws.onerror = () => ws?.close() // force onclose → reconnect path
       // Any WS message means a device state changed — refresh /status
       ws.onmessage = () => { if (!cancelledRef.current) refresh() }
     }

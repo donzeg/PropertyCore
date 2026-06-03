@@ -13,7 +13,7 @@ import type { Rule, Scene } from '../types'
 
 const OPERATORS = [
   { value: 'eq',  label: '= equals' },
-  { value: 'neq', label: '≠ not equals' },
+  { value: 'ne', label: '≠ not equals' },
   { value: 'gt',  label: '> greater than' },
   { value: 'lt',  label: '< less than' },
 ]

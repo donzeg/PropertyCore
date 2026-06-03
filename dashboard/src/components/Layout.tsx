@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Icon } from '@phosphor-icons/react'
 import {
@@ -27,10 +27,12 @@ import {
   CaretDoubleLeft,
   CaretDoubleRight,
   Moon,
+  WifiHigh,
+  X,
 } from '@phosphor-icons/react'
-import { getStatus, getProperty } from '../api'
+import { getStatus, getProperty, getWsUrl } from '../api'
 import { useTheme } from '../App'
-import type { HubStatus, Property } from '../types'
+import type { HubStatus, Property, Device } from '../types'
 
 // ─── Property context ─────────────────────────────────────────────────────────
 
@@ -144,6 +146,26 @@ export default function Layout() {
 
   useEffect(() => {
     getProperty().then(setProperty).catch(() => {})
+  }, [])
+
+  const navigate = useNavigate()
+  const [newDeviceNotifs, setNewDeviceNotifs] = useState<Device[]>([])
+  const dismissNotif = (id: string) =>
+    setNewDeviceNotifs(prev => prev.filter(d => d.id !== id))
+
+  useEffect(() => {
+    const ws = new WebSocket(getWsUrl())
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data) as { event: string; data: Device }
+        if (msg.event === 'device_new') {
+          setNewDeviceNotifs(prev =>
+            prev.some(d => d.id === msg.data.id) ? prev : [...prev, msg.data]
+          )
+        }
+      } catch { /* ignore */ }
+    }
+    return () => ws.close()
   }, [])
 
   // Build full section list — conditionally inject Hospitality for hotels
@@ -288,6 +310,35 @@ export default function Layout() {
 
         {/* ── Main content ──────────────────────────────────────── */}
         <main className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950">
+          {newDeviceNotifs.length > 0 && (
+            <div className="flex flex-col gap-2 px-4 pt-3">
+              {newDeviceNotifs.map(d => (
+                <div key={d.id}
+                     className="flex items-center gap-3 px-4 py-3 rounded-lg
+                                bg-brand/10 border border-brand/20">
+                  <WifiHigh size={16} className="text-brand flex-shrink-0" />
+                  <div className="flex-1 text-sm">
+                    <span className="font-medium text-zinc-900 dark:text-white">New device detected:</span>
+                    {' '}
+                    <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{d.id}</span>
+                  </div>
+                  <button
+                    onClick={() => { navigate('devices'); dismissNotif(d.id) }}
+                    className="text-brand text-xs font-medium px-2 py-0.5 rounded
+                               bg-brand/10 hover:bg-brand/20 transition-colors whitespace-nowrap"
+                  >
+                    Set it up →
+                  </button>
+                  <button
+                    onClick={() => dismissNotif(d.id)}
+                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 ml-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

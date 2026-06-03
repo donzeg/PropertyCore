@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Overview from './pages/Overview'
@@ -50,7 +50,32 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const token = localStorage.getItem('pc-admin-token')
+
+  useEffect(() => {
+    const IDLE_MS = 30 * 60 * 1000 // 30 minutes
+    let timer = window.setTimeout(logout, IDLE_MS)
+
+    function reset() {
+      clearTimeout(timer)
+      timer = window.setTimeout(logout, IDLE_MS)
+    }
+
+    function logout() {
+      localStorage.removeItem('pc-admin-token')
+      localStorage.removeItem('pc-admin-id')
+      navigate('/login', { replace: true })
+    }
+
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }))
+    return () => {
+      clearTimeout(timer)
+      events.forEach((e) => window.removeEventListener(e, reset))
+    }
+  }, [navigate])
+
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }

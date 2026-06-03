@@ -1,0 +1,26 @@
+{
+  "go.goroot": "/usr/local/go",
+  "go.gopath": "/home/syeed/go",
+  "bitbake.pathToBitbakeFolder": "${workspaceFolder}/poky/bitbake",
+  "bitbake.pathToEnvScript": "${workspaceFolder}/poky/oe-init-build-env",
+  "bitbake.buildFolder": "${workspaceFolder}/build-qemu",
+  "bitbake.workingDirectory": "${workspaceFolder}",
+  "bitbake.shellEnv": {
+    "PATH": "${workspaceFolder}/poky/scripts:${workspaceFolder}/poky/bitbake/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/poky/bitbake/lib",
+    "${workspaceFolder}/poky/meta/lib"
+  ],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/poky/bitbake/lib",
+    "${workspaceFolder}/poky/meta/lib"
+  ],
+  "files.associations": {
+    "*.conf": "bitbake",
+    "*.inc": "bitbake",
+    "*.bbappend": "bitbake",
+    "*.bbclass": "bitbake"
+  },
+  "cmake.sourceDirectory": "/home/syeed/projects/propertycore-os/firmware/pc-rly-wifi"
+}

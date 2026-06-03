@@ -122,7 +122,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQT
 				var d DeviceInfo
 				if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if d.ID == "" {
@@ -163,13 +163,13 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQT
 			var probe map[string]interface{}
 			if err := json.Unmarshal(body, &probe); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			topic := "propertycore/devices/" + deviceID + "/cmd"
 			if err := mqtt.Publish(topic, body); err != nil {
 				w.WriteHeader(http.StatusServiceUnavailable)
-				fmt.Fprintf(w, `{"error":"mqtt publish failed: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"failed to send device command"}`)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
@@ -192,7 +192,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQT
 			var patch DeviceInfo
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			if !registry.Update(id, &patch) {
@@ -269,7 +269,7 @@ func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.Handl
 				var s Scene
 				if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if s.Name == "" {
@@ -368,7 +368,7 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 				var rule Rule
 				if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if rule.Name == "" {
@@ -454,7 +454,7 @@ func makeAreasHandler(am *AreaManager) http.HandlerFunc {
 				var area Area
 				if err := json.NewDecoder(r.Body).Decode(&area); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if area.Name == "" {
@@ -492,7 +492,7 @@ func makeAreasHandler(am *AreaManager) http.HandlerFunc {
 			var patch Area
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			if !am.Update(id, &patch) {
@@ -544,7 +544,7 @@ func makeFloorsHandler(fm *FloorManager) http.HandlerFunc {
 				var floor Floor
 				if err := json.NewDecoder(r.Body).Decode(&floor); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if floor.Name == "" {
@@ -582,7 +582,7 @@ func makeFloorsHandler(fm *FloorManager) http.HandlerFunc {
 			var patch Floor
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			if !fm.Update(id, &patch) {
@@ -623,7 +623,7 @@ func makePropertyHandler(pm *PropertyManager) http.HandlerFunc {
 			var patch Property
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			pm.Update(&patch)
@@ -664,7 +664,7 @@ func makeUsersHandler(um *UserManager) http.HandlerFunc {
 				var user User
 				if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if user.Name == "" {
@@ -702,7 +702,7 @@ func makeUsersHandler(um *UserManager) http.HandlerFunc {
 			var patch User
 			if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			if !um.Update(id, &patch) {
@@ -729,13 +729,13 @@ func makeUsersHandler(um *UserManager) http.HandlerFunc {
 
 // makeAuthHandler handles PIN-based authentication for the mobile app:
 //
-//	POST /api/v1/auth         → {"pin":"1234"} → {"token":"...","user":{...with room_ids}}
+//	POST /api/v1/auth         → {"pin":"1234"} → {"token":"...","user":{...with area_ids}}
 //	POST /api/v1/auth/logout  → {"token":"..."} → 204 No Content
 //
 // On success the client receives a session token and the full user profile
-// (including role and room_ids). The mobile app uses role + room_ids to
-// decide which rooms and devices to display without a server round-trip.
-// Owner/admin receive room_ids=null which the app treats as "all rooms".
+// (including role and area_ids). The mobile app uses role + area_ids to
+// decide which areas and devices to display without a server round-trip.
+// Owner/admin receive area_ids=null which the app treats as "all areas".
 func makeAuthHandler(um *UserManager, sm *SessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/auth")
@@ -859,7 +859,7 @@ func makeSchedulesHandler(sm *ScheduleManager) http.HandlerFunc {
 				var s Schedule
 				if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
 					return
 				}
 				if s.SceneID == "" {
@@ -902,7 +902,7 @@ func makeSchedulesHandler(sm *ScheduleManager) http.HandlerFunc {
 			var raw map[string]json.RawMessage
 			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
 				return
 			}
 			var patch patchBody
@@ -949,6 +949,32 @@ func makeSchedulesHandler(sm *ScheduleManager) http.HandlerFunc {
 		default:
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
+	}
+}
+
+// requireAdminAuth is a middleware that validates an admin session token from the
+// Authorization header. Returns 401 JSON if the token is missing or invalid.
+// Wrap all dashboard API routes with this except /health, /status, /ws,
+// /api/v1/auth*, and /api/v1/admin/login|logout.
+func requireAdminAuth(sm *SessionManager, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := adminTokenFromRequest(r)
+		if _, ok := sm.ValidateToken(token); !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"unauthorized"}`)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// withBodyLimit wraps a handler to limit request bodies to 1 MiB, preventing
+// memory exhaustion from oversized payloads.
+func withBodyLimit(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
+		next(w, r)
 	}
 }
 

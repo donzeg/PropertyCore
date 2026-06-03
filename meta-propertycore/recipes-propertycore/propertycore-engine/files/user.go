@@ -2,10 +2,13 @@
 // Users represent people who can interact with the PropertyCore platform.
 // Roles: owner (full access), admin (configuration), guest (control only).
 // Each user is persisted to /var/lib/propertycore/users.json via the Store.
-// PINs are stored as plain text — this is a LAN-only embedded system, not a web service.
+// PINs are stored as PBKDF2-HMAC-SHA256 hashes (same algorithm as admin.go).
+// Plain-text PINs are accepted on read for migration; they are re-hashed on
+// the next Add or Update call.
 package main
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -79,6 +82,12 @@ func (um *UserManager) Add(u *User) error {
 	if u.CreatedAt.IsZero() {
 		u.CreatedAt = time.Now().UTC()
 	}
+	// Hash the PIN before persisting if it was provided as plain text.
+	if u.PIN != "" && !strings.HasPrefix(u.PIN, "pbkdf2:") {
+		if hashed, err := hashAdminPassword(u.PIN); err == nil {
+			u.PIN = hashed
+		}
+	}
 	um.mu.Lock()
 	um.users[u.ID] = u
 	um.mu.Unlock()
@@ -118,7 +127,12 @@ func (um *UserManager) Update(id string, patch *User) bool {
 			u.Role = patch.Role
 		}
 		if patch.PIN != "" {
-			u.PIN = patch.PIN
+			// Hash the new PIN unless it is already in PBKDF2 format.
+			if strings.HasPrefix(patch.PIN, "pbkdf2:") {
+				u.PIN = patch.PIN
+			} else if hashed, err := hashAdminPassword(patch.PIN); err == nil {
+				u.PIN = hashed
+			}
 		}
 		if patch.AreaIDs != nil {
 			u.AreaIDs = patch.AreaIDs
@@ -162,7 +176,12 @@ func (um *UserManager) FindByPIN(pin string) (*User, bool) {
 	um.mu.RLock()
 	defer um.mu.RUnlock()
 	for _, u := range um.users {
-		if u.PIN == pin {
+		// Support both PBKDF2-hashed PINs (new) and plain-text PINs (migration).
+		if strings.HasPrefix(u.PIN, "pbkdf2:") {
+			if checkAdminPassword(pin, u.PIN) {
+				return u, true
+			}
+		} else if u.PIN == pin {
 			return u, true
 		}
 	}

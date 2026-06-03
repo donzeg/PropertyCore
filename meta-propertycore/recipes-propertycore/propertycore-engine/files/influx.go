@@ -50,19 +50,20 @@ func (iw *InfluxWriter) WriteDeviceState(dev *DeviceState) {
 
 	var fields []string
 	for k, v := range dev.State {
+		fk := sanitizeInfluxTag(k) // sanitize field keys as well as tag keys
 		switch val := v.(type) {
 		case bool:
 			if val {
-				fields = append(fields, k+"=true")
+				fields = append(fields, fk+"=true")
 			} else {
-				fields = append(fields, k+"=false")
+				fields = append(fields, fk+"=false")
 			}
 		case float64:
-			fields = append(fields, fmt.Sprintf("%s=%g", k, val))
+			fields = append(fields, fmt.Sprintf("%s=%g", fk, val))
 		case string:
 			// Escape quotes in string field values
 			escaped := strings.ReplaceAll(val, `"`, `\"`)
-			fields = append(fields, fmt.Sprintf(`%s="%s"`, k, escaped))
+			fields = append(fields, fmt.Sprintf(`%s="%s"`, fk, escaped))
 		}
 	}
 

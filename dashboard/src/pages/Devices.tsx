@@ -26,6 +26,7 @@ export default function Devices() {
   const [editing, setEditing] = useState<Device | null>(null)
   const [configuring, setConfiguring] = useState<Device | null>(null)
   const [addWizard, setAddWizard] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', area_id: '' })
   const [error, setError] = useState('')
 
@@ -49,8 +50,18 @@ export default function Devices() {
         if (msg.event === 'device_state' && msg.data?.id) {
           setDevices((prev) => prev.map((d) =>
             d.id === msg.data.id
-              ? { ...d, online: msg.data.online ?? d.online, last_seen: msg.data.last_seen ?? d.last_seen }
+              ? { ...d, last_seen: msg.data.last_seen ?? d.last_seen }
               : d
+          ))
+        }
+        if (msg.event === 'device_offline' && msg.data?.id) {
+          setDevices((prev) => prev.map((d) =>
+            d.id === msg.data.id ? { ...d, online: false } : d
+          ))
+        }
+        if (msg.event === 'device_online' && msg.data?.id) {
+          setDevices((prev) => prev.map((d) =>
+            d.id === msg.data.id ? { ...d, online: true } : d
           ))
         }
       } catch { /* ignore parse errors */ }
@@ -75,10 +86,8 @@ export default function Devices() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remove device from registry? It will re-register automatically if it reconnects via MQTT.')) return
-    await deleteDevice(id).catch(console.error)
-    load()
+  const handleDelete = (id: string) => {
+    setPendingDelete(id)
   }
 
   const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? '—'
@@ -178,6 +187,26 @@ export default function Devices() {
           onClose={() => setAddWizard(false)}
           onDone={() => { setAddWizard(false); load() }}
         />
+      )}
+
+      {/* Delete confirmation */}
+      {pendingDelete && (
+        <Modal title="Remove Device" onClose={() => setPendingDelete(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Remove this device from the registry? It will re-register automatically if it reconnects via MQTT.
+            </p>
+            <ModalFooter
+              onCancel={() => setPendingDelete(null)}
+              onSave={async () => {
+                await deleteDevice(pendingDelete).catch(console.error)
+                setPendingDelete(null)
+                load()
+              }}
+              saveLabel="Remove"
+            />
+          </div>
+        </Modal>
       )}
 
       {/* Device-type config sheet */}

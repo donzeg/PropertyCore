@@ -731,6 +731,69 @@ No device ever requires an external cloud to function.
 
 ---
 
+## 6.1 Third-Party Device Support — Protocol Bridges
+
+PropertyCore uses a **bridge architecture** for third-party device ecosystems. Each bridge is a small standalone service that translates a foreign protocol or firmware format into the standard PropertyCore MQTT envelope (`propertycore/devices/{id}/state` and `propertycore/devices/{id}/cmd`). The automation engine never changes — it only ever speaks its own MQTT format.
+
+```
+[Tasmota device]    →  pc-bridge-tasmota   →  Mosquitto  →  Engine
+[ESPHome device]    →  (native MQTT)        →  Mosquitto  →  Engine
+[Zigbee device]     →  Zigbee2MQTT          →  Mosquitto  →  Engine
+[Tuya device]       →  pc-bridge-tuya       →  Mosquitto  →  Engine
+[Shelly device]     →  (native MQTT)        →  Mosquitto  →  Engine
+[Modbus device]     →  pc-bridge-modbus     →  Mosquitto  →  Engine
+[KNX device]        →  pc-bridge-knx        →  Mosquitto  →  Engine
+```
+
+### Firmware / Protocol Bridge Priority
+
+**Tier 1 — High priority (large market share in Nigeria/Africa)**
+
+| Bridge | Why | Notes |
+|---|---|---|
+| **Tasmota** | Millions of cheap ESP32/ESP8266 boards already running it. Sonoff, LC Tech, market-stall relays. | Different MQTT topic format and JSON shape — needs a topic translator. `firmware_type: "tasmota"` in device metadata. |
+| **ESPHome** | Dev-friendly YAML framework. Excellent for sensors, custom hardware, the DEYE inverter integration. | Speaks native MQTT with a `lambda:` payload block — near plug-and-play with a small adapter. |
+| **Zigbee via Zigbee2MQTT** | Massive sensor/switch ecosystem. Cheap door sensors, motion, temperature, energy. USB Zigbee dongle on Hub. | Zigbee2MQTT already outputs MQTT — bridge is thin. Enormous value-add for hotel sensor installs. |
+| **Shelly** | Higher-quality devices, popular in the market. Built-in local MQTT. | Native MQTT — the bridge is almost trivial. |
+| **Tuya Local** | Most cheap consumer devices sold in Nigerian markets are Tuya-based. Controllable locally without cloud. | Tuya Local API (UDP discovery + TCP commands). No cloud dependency. |
+
+**Tier 2 — Commercial / building installs**
+
+| Bridge | Why |
+|---|---|
+| **Modbus RTU (RS485)** | DEYE/Growatt inverters, commercial HVAC, energy meters. Already planned in §4.4. |
+| **KNX** | Industry standard in hotels and commercial buildings. Required for any serious hotel installation. |
+| **BACnet** | Commercial HVAC/BMS in larger properties. |
+| **DALI** | Professional lighting control standard in hotels and offices. |
+
+**Tier 3 — Future**
+
+| Bridge | Why |
+|---|---|
+| **Matter** | New universal standard backed by Apple, Google, Amazon. ESP32 supports it natively. Long-term positioning. |
+| **Z-Wave** | Rock-solid for security sensors. Less common in Africa currently. |
+
+### Firmware Type Field
+
+All registered devices carry a `firmware_type` field in their metadata:
+
+```json
+{ "firmware_type": "propertycore" | "tasmota" | "esphome" | "shelly" | "zigbee" | "tuya" | "other" }
+```
+
+This is set during the **Add Device wizard** in the dashboard. It determines which bridge handles the device and what config panel is shown.
+
+### Add Device Wizard
+
+The dashboard onboarding wizard (see `DASHBOARD-PLAN.md` Phase 3) guides the engineer to:
+1. Choose firmware type
+2. Auto-generate the correct MQTT config (Tasmota rule, ESPHome YAML, etc.) pre-filled with the hub IP and device ID
+3. Show flash/OTA instructions for that firmware
+4. Wait for the device to appear on MQTT (live "waiting for first message..." indicator)
+5. Confirm registration and assign to area
+
+---
+
 ## 7. Deployment Model
 
 ### How PropertyCore Is Sold and Installed
@@ -944,6 +1007,7 @@ These are active in every PropertyCore installation regardless of property type.
 | Security & Surveillance | IP cameras, motion detection, recording, live view |
 | Smart Locks & Access | Door locks, gate controllers, access logs |
 | Scene Engine | Scenes, automation rules, schedules, triggers |
+| Person & Presence Tracking | Who is home/away — drives presence-based automations |
 | Mobile App | Guest/owner/tenant control app (Android + iOS) |
 | Smart Remote | Control4-style handheld remote |
 | Wall Panel | In-room touchscreen controller |
@@ -1058,6 +1122,44 @@ For operators managing multiple sites — estates, hotel chains, short-let portf
 - Remote access to any hub with one click
 - Monthly energy and operational reports per property
 - Centralised user and device management across sites
+
+### 11.13 Person & Presence Tracking Module *(All Deployments)*
+
+Tracks where the people associated with a property are — home, away, or in a named zone. Powers presence-based automations ("Welcome home", "Nobody home → all off") and gives hotel/estate operators a live view of who is on-site.
+
+**How it works — tracker aggregation:**
+
+A **Person** entity aggregates one or more device trackers. The engine resolves the person's final state using priority rules:
+
+1. If any stationary tracker (Wi-Fi MAC, BLE beacon) reports `home`, the person is `home`.
+2. Otherwise, if the mobile app tracker reports a GPS zone, the person is in that zone.
+3. Otherwise, the most recently updated tracker with state `not_home` sets the state to `away`.
+
+This mirrors the priority model used by Home Assistant's Person integration, which handles the edge case where a phone disconnects from Wi-Fi before physically leaving the building.
+
+**Tracker types supported:**
+
+| Tracker Type | Hardware / Method | Use Case |
+|---|---|---|
+| Wi-Fi MAC | Router DHCP lease or ARP table check | Phone on home network → home |
+| BLE beacon | PC-BLE-TAG wearable tag + BLE scanner on hub | Child wristband, elderly care tag |
+| Mobile app | Periodic heartbeat from PropertyCore app | Any smartphone user |
+| Manual | User sets own state from mobile app | Override / guest self-check-in |
+
+**Automations enabled:**
+
+- "When [Person] arrives home → run Welcome scene" — AC on, lights on, gate unlocked
+- "When last person leaves → run All Off scene" — energy-saving mode
+- "When [Person] is away for >4 hours → notify" — security alert
+- Hotel: "When [Staff] enters [Zone: Kitchen] → log for compliance"
+- Estate: "Who is currently on premises" — live security board
+
+**Person entity state values:** `home` | `away` | `<zone_name>` (e.g. `garden`, `garage`, `office`)
+
+**Engine implementation:**
+- `person.go` — PersonManager: CRUD persons, tracker assignment, state aggregation
+- `/api/v1/persons` — CRUD; `/api/v1/persons/{id}/state` — live state; `/api/v1/trackers` — tracker CRUD per person
+- Tracker state fed by: MQTT (BLE/Wi-Fi hub modules), REST heartbeat (mobile app), engine network scanner
 
 ---
 

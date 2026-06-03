@@ -55,7 +55,7 @@ export default function AddDeviceWizard({ onClose, onDone }: Props) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Hub IP from browser URL (dashboard is served from the hub)
-  const hubIp = window.location.hostname === 'localhost' ? '192.168.31.223' : window.location.hostname
+  const hubIp = window.location.hostname
 
   useEffect(() => {
     getAreas().then(setAreas).catch(() => {})

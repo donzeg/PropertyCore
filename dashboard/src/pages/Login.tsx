@@ -10,6 +10,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error,        setError]        = useState<string | null>(null)
   const [loading,      setLoading]      = useState(false)
+  const [attempts,     setAttempts]     = useState(0)
+  const [lockedUntil,  setLockedUntil]  = useState<number | null>(null)
 
   useEffect(() => {
     if (localStorage.getItem('pc-admin-token')) {
@@ -19,6 +21,17 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    // Check lockout
+    if (lockedUntil !== null) {
+      const secsLeft = Math.ceil((lockedUntil - Date.now()) / 1000)
+      if (secsLeft > 0) {
+        setError(`Too many failed attempts. Try again in ${secsLeft}s.`)
+        return
+      } else {
+        setLockedUntil(null)
+        setAttempts(0)
+      }
+    }
     if (!username.trim() || !password) return
     setLoading(true)
     setError(null)
@@ -29,8 +42,16 @@ export default function Login() {
         body: JSON.stringify({ username: username.trim(), password }),
       })
       if (!res.ok) {
-        setError('Invalid username or password.')
+        const next = attempts + 1
+        setAttempts(next)
         setPassword('')
+        if (next >= 5) {
+          setLockedUntil(Date.now() + 5 * 60 * 1000)
+          setAttempts(0)
+          setError('Too many failed attempts. Locked for 5 minutes.')
+        } else {
+          setError(`Invalid username or password. ${5 - next} attempt${5 - next === 1 ? '' : 's'} remaining.`)
+        }
       } else {
         const data = await res.json()
         localStorage.setItem('pc-admin-token', data.token)
@@ -115,15 +136,12 @@ export default function Login() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading || !username.trim() || !password}
+            disabled={loading || !username.trim() || !password || (lockedUntil !== null && Date.now() < lockedUntil)}
             className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <p className="text-center text-xs text-zinc-400 dark:text-zinc-600">
-            Default: admin / propertycore
-          </p>
         </form>
       </div>
     </div>

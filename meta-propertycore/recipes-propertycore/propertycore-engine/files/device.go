@@ -14,7 +14,7 @@ import (
 type DeviceInfo struct {
 	ID              string          `json:"id"`
 	Name            string          `json:"name"`
-	Type            string          `json:"type"`             // relay, ac_gateway, sensor, etc.
+	Type            string          `json:"type"`              // relay, ac_gateway, sensor, etc.
 	AreaID          string          `json:"area_id,omitempty"` // foreign key to Area
 	Vendor          string          `json:"vendor,omitempty"`
 	FirmwareVersion string          `json:"firmware_version,omitempty"`
@@ -53,7 +53,11 @@ func (dr *DeviceRegistry) Load(items []*DeviceInfo) {
 // MarkSeen is called by StateManager.OnUpdate whenever a device publishes a state message.
 // If the device is not yet in the registry it is auto-registered using the MQTT-reported type.
 // Updates Online=true and LastSeen; persists only if a new record was created.
-func (dr *DeviceRegistry) MarkSeen(id, deviceType string) {
+// Returns (isNew, cameOnline):
+//
+//	isNew      — first time this device has been seen (auto-registration)
+//	cameOnline — device was previously marked offline and is now back
+func (dr *DeviceRegistry) MarkSeen(id, deviceType string) (isNew bool, cameOnline bool) {
 	dr.mu.Lock()
 	d, exists := dr.devices[id]
 	if !exists {
@@ -68,8 +72,9 @@ func (dr *DeviceRegistry) MarkSeen(id, deviceType string) {
 		dr.devices[id] = d
 		dr.mu.Unlock()
 		dr.persist() // only persist on first registration
-		return
+		return true, false
 	}
+	wasOffline := !d.Online
 	d.Online = true
 	d.LastSeen = time.Now().UTC()
 	if d.Type == "" && deviceType != "" {
@@ -78,6 +83,7 @@ func (dr *DeviceRegistry) MarkSeen(id, deviceType string) {
 	dr.mu.Unlock()
 	// Don't persist on every state update — LastSeen is volatile.
 	// The registry is re-persisted on clean shutdown or structural changes.
+	return false, wasOffline
 }
 
 // Register adds or replaces a device record manually.

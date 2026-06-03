@@ -1,6 +1,7 @@
-// PropertyCore Automation Engine — v0.13.0
-// Adds dashboard admin accounts (separate from mobile-app users).
-// PBKDF2-HMAC-SHA256 passwords, /api/v1/admin/login + /api/v1/admin/accounts endpoints.
+// PropertyCore Automation Engine — v0.14.0
+// Adds auth middleware on all API routes, session TTL (24h), PIN hashing for users,
+// InfluxDB field key sanitisation, rule operator alias (neq→ne), body size limit,
+// and generic error responses.
 // Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + admin.go + api.go + ws.go + influx.go
 package main
 
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	version       = "0.13.0"
+	version       = "0.14.0"
 	httpPort      = "8080"
 	mqttDefault   = "localhost:1883"
 	influxDefault = "http://localhost:8086"
@@ -78,8 +79,27 @@ func main() {
 	// WebSocket hub — broadcasts device_state, scene_executed, and rule_fired events
 	wsHub := NewWSHub()
 	state.OnUpdate = func(dev *DeviceState) {
-		registry.MarkSeen(dev.ID, dev.Type)
+		// Check for LWT offline notification: {"online":false,...}
+		if onlineVal, ok := dev.State["online"]; ok {
+			if isOnline, ok := onlineVal.(bool); ok && !isOnline {
+				registry.MarkOffline(dev.ID)
+				if info, ok2 := registry.Get(dev.ID); ok2 {
+					wsHub.Broadcast("device_offline", info)
+				}
+				return
+			}
+		}
+		isNew, cameOnline := registry.MarkSeen(dev.ID, dev.Type)
 		wsHub.Broadcast("device_state", dev)
+		if isNew {
+			if info, ok := registry.Get(dev.ID); ok {
+				wsHub.Broadcast("device_new", info)
+			}
+		} else if cameOnline {
+			if info, ok := registry.Get(dev.ID); ok {
+				wsHub.Broadcast("device_online", info)
+			}
+		}
 		rulesEngine.Evaluate(dev)
 		go influx.WriteDeviceState(dev)
 	}
@@ -164,31 +184,41 @@ func main() {
 	go announceOnline(mqttClient)
 
 	// HTTP API
+	// auth wraps a handler with both session validation and body size limit.
+	// Use for all routes that require a valid admin dashboard token.
+	auth := func(h http.HandlerFunc) http.HandlerFunc {
+		return requireAdminAuth(adminSessions, withBodyLimit(h))
+	}
+
 	mux := http.NewServeMux()
+	// Public routes (no auth required)
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/status", makeStatusHandler(mqttClient, registry, state, scenes, rulesEngine, floors, areas, users, scheduler, wsHub))
-	mux.HandleFunc("/api/v1/devices", makeDevicesHandler(registry, state, mqttClient))
-	mux.HandleFunc("/api/v1/devices/", makeDevicesHandler(registry, state, mqttClient))
-	mux.HandleFunc("/api/v1/scenes", makeScenesHandler(scenes, mqttClient, wsHub))
-	mux.HandleFunc("/api/v1/scenes/", makeScenesHandler(scenes, mqttClient, wsHub))
-	mux.HandleFunc("/api/v1/rules", makeRulesHandler(rulesEngine))
-	mux.HandleFunc("/api/v1/rules/", makeRulesHandler(rulesEngine))
-	mux.HandleFunc("/api/v1/areas", makeAreasHandler(areas))
-	mux.HandleFunc("/api/v1/areas/", makeAreasHandler(areas))
-	mux.HandleFunc("/api/v1/floors", makeFloorsHandler(floors))
-	mux.HandleFunc("/api/v1/floors/", makeFloorsHandler(floors))
-	mux.HandleFunc("/api/v1/property", makePropertyHandler(prop))
-	mux.HandleFunc("/api/v1/users", makeUsersHandler(users))
-	mux.HandleFunc("/api/v1/users/", makeUsersHandler(users))
-	mux.HandleFunc("/api/v1/auth", makeAuthHandler(users, sessions))
-	mux.HandleFunc("/api/v1/auth/", makeAuthHandler(users, sessions))
-	mux.HandleFunc("/api/v1/admin/login", makeAdminAuthHandler(admins, adminSessions))
-	mux.HandleFunc("/api/v1/admin/logout", makeAdminAuthHandler(admins, adminSessions))
-	mux.HandleFunc("/api/v1/admin/accounts", makeAdminAccountsHandler(admins, adminSessions))
-	mux.HandleFunc("/api/v1/admin/accounts/", makeAdminAccountsHandler(admins, adminSessions))
-	mux.HandleFunc("/api/v1/schedules", makeSchedulesHandler(scheduler))
-	mux.HandleFunc("/api/v1/schedules/", makeSchedulesHandler(scheduler))
 	mux.HandleFunc("/ws", wsHub.ServeWS(state))
+	// Mobile auth — PIN login/logout (no admin token needed)
+	mux.HandleFunc("/api/v1/auth", withBodyLimit(makeAuthHandler(users, sessions)))
+	mux.HandleFunc("/api/v1/auth/", withBodyLimit(makeAuthHandler(users, sessions)))
+	// Admin auth — login/logout are public (they create/destroy the session)
+	mux.HandleFunc("/api/v1/admin/login", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
+	mux.HandleFunc("/api/v1/admin/logout", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
+	// Protected routes — require valid admin session token
+	mux.HandleFunc("/api/v1/devices", auth(makeDevicesHandler(registry, state, mqttClient)))
+	mux.HandleFunc("/api/v1/devices/", auth(makeDevicesHandler(registry, state, mqttClient)))
+	mux.HandleFunc("/api/v1/scenes", auth(makeScenesHandler(scenes, mqttClient, wsHub)))
+	mux.HandleFunc("/api/v1/scenes/", auth(makeScenesHandler(scenes, mqttClient, wsHub)))
+	mux.HandleFunc("/api/v1/rules", auth(makeRulesHandler(rulesEngine)))
+	mux.HandleFunc("/api/v1/rules/", auth(makeRulesHandler(rulesEngine)))
+	mux.HandleFunc("/api/v1/areas", auth(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/areas/", auth(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/floors", auth(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/floors/", auth(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/property", auth(makePropertyHandler(prop)))
+	mux.HandleFunc("/api/v1/users", auth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/users/", auth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/admin/accounts", auth(makeAdminAccountsHandler(admins, adminSessions)))
+	mux.HandleFunc("/api/v1/admin/accounts/", auth(makeAdminAccountsHandler(admins, adminSessions)))
+	mux.HandleFunc("/api/v1/schedules", auth(makeSchedulesHandler(scheduler)))
+	mux.HandleFunc("/api/v1/schedules/", auth(makeSchedulesHandler(scheduler)))
 
 	srv := &http.Server{
 		Addr:         ":" + httpPort,

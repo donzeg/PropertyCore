@@ -195,7 +195,7 @@ func matchCondition(c RuleCondition, dev *DeviceState) bool {
 	switch c.Operator {
 	case "eq":
 		return jsonEqual(raw, c.Value)
-	case "ne":
+	case "ne", "neq": // accept both spellings
 		return !jsonEqual(raw, c.Value)
 	case "gt", "lt", "gte", "lte":
 		got, ok1 := toFloat(raw)
