@@ -1,5 +1,6 @@
 import type {
   Area,
+  ConditionClause,
   Device,
   Floor,
   HubStatus,
@@ -125,9 +126,17 @@ export const getScenes = (): Promise<Scene[]> =>
 
 export const createScene = (body: {
   name: string
+  icon?: string
+  area_id?: string
   actions: SceneAction[]
 }): Promise<Scene> =>
   req<Scene>('/api/v1/scenes', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateScene = (
+  id: string,
+  body: Partial<Pick<Scene, 'name' | 'icon' | 'area_id' | 'actions'>>,
+): Promise<Scene> =>
+  req<Scene>(`/api/v1/scenes/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const executeScene = (id: string): Promise<void> =>
   req<void>(`/api/v1/scenes/${id}/execute`, { method: 'POST' })
@@ -141,11 +150,19 @@ export const getRules = (): Promise<Rule[]> =>
   req<Rule[]>('/api/v1/rules')
 
 export const createRule = (body: {
-  label: string
-  condition: Rule['condition']
-  action: Rule['action']
+  name: string
+  conditions?: ConditionClause[]
+  condition_logic?: 'and' | 'or'
+  condition?: Rule['condition']
+  action: { type: string; scene_id: string }
 }): Promise<Rule> =>
   req<Rule>('/api/v1/rules', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateRule = (
+  id: string,
+  body: Partial<Pick<Rule, 'name' | 'conditions' | 'condition_logic' | 'condition' | 'action'>>,
+): Promise<Rule> =>
+  req<Rule>(`/api/v1/rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const enableRule = (id: string): Promise<Rule> =>
   req<Rule>(`/api/v1/rules/${id}/enable`, { method: 'POST' })
@@ -174,6 +191,12 @@ export const disableSchedule = (id: string): Promise<Schedule> =>
 
 export const deleteSchedule = (id: string): Promise<void> =>
   req<void>(`/api/v1/schedules/${id}`, { method: 'DELETE' })
+
+export const updateSchedule = (
+  id: string,
+  body: Partial<Omit<Schedule, 'id' | 'created_at'>>,
+): Promise<Schedule> =>
+  req<Schedule>(`/api/v1/schedules/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 

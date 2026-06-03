@@ -337,7 +337,7 @@ Store `firmware_type` in `device.metadata.firmware_type`. Engine change: accept 
 
 ---
 
-### Phase 4 — Automation Enhancement
+### Phase 4 — Automation Enhancement ✅ Complete
 
 **Goal:** Scenes, Rules, and Schedules become fully production-grade with the complete action/condition model from UI-SCOPE §13.
 
@@ -798,7 +798,7 @@ custom_components/localtuya/
 | 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ✅ Complete |
 | 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ✅ Complete |
 | 3 | Add Device | Add Device wizard — Tasmota/ESPHome/Shelly/Zigbee/Tuya/PropertyCore onboarding + generated configs | ✅ Complete (commit `0f62293`) |
-| 4 | Automation | Full scene/rule/schedule builder with complete action + condition model | ⬜ Not started |
+| 4 | Automation | Full scene/rule/schedule builder with complete action + condition model | ✅ Complete (commit pending) |
 | 5 | Energy | Power flow diagram, inverter setup, water, generator | ⬜ Not started |
 | 6 | Security | Cameras, access control, alarm zones, intercom, people & presence | ⬜ Not started |
 | 7 | Media | Audio zones, AV/IR config, streaming services, Jellyfin | ⬜ Not started |

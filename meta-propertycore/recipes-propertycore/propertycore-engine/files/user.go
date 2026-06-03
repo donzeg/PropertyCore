@@ -24,10 +24,10 @@ const (
 
 // User represents a person who interacts with the platform.
 type User struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      UserRole  `json:"role"`
-	PIN       string    `json:"pin,omitempty"` // 4-8 digit PIN, omitted when listing
+	ID   string   `json:"id"`
+	Name string   `json:"name"`
+	Role UserRole `json:"role"`
+	PIN  string   `json:"pin,omitempty"` // 4-8 digit PIN, omitted when listing
 	// AreaIDs lists the areas this user may access.
 	// Empty/nil means unrestricted (owner and admin default).
 	// Guests should have an explicit list of assigned area IDs.
@@ -37,9 +37,9 @@ type User struct {
 
 // userPublic is User with PIN omitted for list/get responses.
 type userPublic struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      UserRole  `json:"role"`
+	ID   string   `json:"id"`
+	Name string   `json:"name"`
+	Role UserRole `json:"role"`
 	// AreaIDs is included in the public profile so the mobile app can filter
 	// its UI to only show areas this user is allowed to access.
 	// nil/empty means the user has access to all areas.

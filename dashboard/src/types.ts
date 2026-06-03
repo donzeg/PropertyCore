@@ -67,13 +67,19 @@ export interface Device {
 // ─── Scene ───────────────────────────────────────────────────────────────────
 
 export interface SceneAction {
-  device_id: string
-  payload: Record<string, unknown>
+  // action_type: '' or 'device_state' → MQTT publish; 'run_scene' → chain scene; 'delay' → wait
+  action_type?: string
+  device_id?: string
+  payload?: Record<string, unknown>
+  run_scene_id?: string
+  delay_ms?: number
 }
 
 export interface Scene {
   id: string
   name: string
+  icon?: string
+  area_id?: string
   actions: SceneAction[]
   created_at: string
 }
@@ -87,11 +93,28 @@ export interface RuleCondition {
   value: unknown
 }
 
+export interface ConditionClause {
+  type: 'device_state' | 'time_of_day' | 'day_of_week'
+  // device_state
+  device_id?: string
+  field?: string
+  operator?: string  // "eq" | "ne" | "gt" | "lt"
+  value?: unknown
+  // time_of_day
+  time_op?: 'before' | 'after' | 'between'
+  time_from?: string  // "HH:MM"
+  time_to?: string    // "HH:MM" (for between)
+  // day_of_week
+  days?: string[]     // ["mon","tue",...]
+}
+
 export interface Rule {
   id: string
-  label: string
+  name: string
   condition: RuleCondition
-  action: { scene_id: string }
+  conditions?: ConditionClause[]
+  condition_logic?: 'and' | 'or'
+  action: { type: string; scene_id: string }
   enabled: boolean
   created_at: string
 }
@@ -105,6 +128,8 @@ export interface Schedule {
   hour: number    // 0–23
   minute: number  // 0–59
   days: string[]  // ["mon","tue",...] or [] = every day
+  trigger_type?: 'fixed' | 'sunrise' | 'sunset'
+  sunrise_offset_min?: number
   enabled: boolean
   created_at: string
 }

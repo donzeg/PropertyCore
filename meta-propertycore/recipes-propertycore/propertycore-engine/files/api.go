@@ -222,6 +222,7 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQT
 //	GET    /api/v1/scenes           → list all scenes
 //	POST   /api/v1/scenes           → create a scene
 //	GET    /api/v1/scenes/{id}      → get a scene
+//	PATCH  /api/v1/scenes/{id}      → update a scene
 //	DELETE /api/v1/scenes/{id}      → delete a scene
 //	POST   /api/v1/scenes/{id}/execute → execute a scene
 func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.HandlerFunc {
@@ -291,7 +292,7 @@ func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.Handl
 			return
 		}
 
-		// Single scene: GET /api/v1/scenes/{id} or DELETE /api/v1/scenes/{id}
+		// Single scene: GET, PATCH, or DELETE /api/v1/scenes/{id}
 		id := suffix
 		switch r.Method {
 		case http.MethodGet:
@@ -301,6 +302,27 @@ func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.Handl
 				fmt.Fprintf(w, `{"error":"scene not found","id":%q}`, id)
 				return
 			}
+			if err := json.NewEncoder(w).Encode(s); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var updated Scene
+			if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if updated.Name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"name is required"}`)
+				return
+			}
+			if !sm.Update(id, &updated) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"scene not found","id":%q}`, id)
+				return
+			}
+			s, _ := sm.Get(id)
 			if err := json.NewEncoder(w).Encode(s); err != nil {
 				http.Error(w, "encode error", http.StatusInternalServerError)
 			}
@@ -322,6 +344,7 @@ func makeScenesHandler(sm *SceneManager, mqtt *MQTTClient, ws *WSHub) http.Handl
 //	GET    /api/v1/rules              → list all rules
 //	POST   /api/v1/rules              → create rule
 //	GET    /api/v1/rules/{id}         → get rule
+//	PATCH  /api/v1/rules/{id}         → update rule
 //	DELETE /api/v1/rules/{id}         → delete rule
 //	POST   /api/v1/rules/{id}/enable  → enable rule
 //	POST   /api/v1/rules/{id}/disable → disable rule
@@ -376,10 +399,17 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 					fmt.Fprint(w, `{"error":"name is required"}`)
 					return
 				}
-				if rule.Condition.DeviceID == "" || rule.Condition.Field == "" || rule.Condition.Operator == "" {
-					w.WriteHeader(http.StatusBadRequest)
-					fmt.Fprint(w, `{"error":"condition.device_id, condition.field, and condition.operator are required"}`)
-					return
+				// Auto-default action type from scene_id when type is omitted.
+				if rule.Action.Type == "" && rule.Action.SceneID != "" {
+					rule.Action.Type = "scene"
+				}
+				// Validate: new-style conditions OR legacy condition must be present.
+				if len(rule.Conditions) == 0 {
+					if rule.Condition.DeviceID == "" || rule.Condition.Field == "" || rule.Condition.Operator == "" {
+						w.WriteHeader(http.StatusBadRequest)
+						fmt.Fprint(w, `{"error":"condition.device_id, condition.field, and condition.operator are required"}`)
+						return
+					}
 				}
 				if rule.Action.Type != "scene" && rule.Action.Type != "mqtt" {
 					w.WriteHeader(http.StatusBadRequest)
@@ -401,7 +431,7 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 			return
 		}
 
-		// Single rule: GET or DELETE /api/v1/rules/{id}
+		// Single rule: GET, PATCH, or DELETE /api/v1/rules/{id}
 		id := suffix
 		switch r.Method {
 		case http.MethodGet:
@@ -411,6 +441,30 @@ func makeRulesHandler(re *RulesEngine) http.HandlerFunc {
 				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
 				return
 			}
+			if err := json.NewEncoder(w).Encode(rule); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			var updated Rule
+			if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if updated.Name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"name is required"}`)
+				return
+			}
+			if updated.Action.Type == "" && updated.Action.SceneID != "" {
+				updated.Action.Type = "scene"
+			}
+			if !re.Update(id, &updated) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"rule not found","id":%q}`, id)
+				return
+			}
+			rule, _ := re.Get(id)
 			if err := json.NewEncoder(w).Encode(rule); err != nil {
 				http.Error(w, "encode error", http.StatusInternalServerError)
 			}

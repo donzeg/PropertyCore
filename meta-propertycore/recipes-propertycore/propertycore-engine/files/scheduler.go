@@ -22,15 +22,19 @@ var dayAbbrev = map[time.Weekday]string{
 }
 
 // Schedule defines a time-based trigger that executes a scene.
+// TriggerType: "fixed" (default) uses Hour/Minute; "sunrise"/"sunset" uses
+// SunriseOffsetMin relative to sunrise/sunset (requires location config — future).
 type Schedule struct {
-	ID        string    `json:"id"`
-	Label     string    `json:"label"`
-	SceneID   string    `json:"scene_id"`
-	Hour      int       `json:"hour"`   // 0-23
-	Minute    int       `json:"minute"` // 0-59
-	Days      []string  `json:"days"`   // ["mon","tue",...] — empty means every day
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	Label            string    `json:"label"`
+	SceneID          string    `json:"scene_id"`
+	Hour             int       `json:"hour"`                       // 0-23 (fixed trigger)
+	Minute           int       `json:"minute"`                     // 0-59 (fixed trigger)
+	Days             []string  `json:"days"`                       // ["mon","tue",...] — empty means every day
+	Enabled          bool      `json:"enabled"`
+	TriggerType      string    `json:"trigger_type,omitempty"`      // "fixed"|"sunrise"|"sunset" (v0.15)
+	SunriseOffsetMin int       `json:"sunrise_offset_min,omitempty"` // ±minutes from sunrise/sunset (v0.15)
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // ScheduleManager manages the collection of schedules and drives the ticker loop.

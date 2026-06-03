@@ -13,15 +13,24 @@ import (
 )
 
 // Action is a single device command within a scene.
+// ActionType controls behaviour:
+//   - "" or "device_state" — publish Payload to the device's /cmd topic (default)
+//   - "run_scene"          — execute another scene by RunSceneID
+//   - "delay"              — pause execution for DelayMs milliseconds
 type Action struct {
-	DeviceID string                 `json:"device_id"`
-	Payload  map[string]interface{} `json:"payload"`
+	DeviceID   string                 `json:"device_id"`
+	Payload    map[string]interface{} `json:"payload"`
+	ActionType string                 `json:"action_type,omitempty"` // v0.15
+	RunSceneID string                 `json:"run_scene_id,omitempty"` // v0.15
+	DelayMs    int                    `json:"delay_ms,omitempty"`     // v0.15
 }
 
 // Scene is a named set of device actions that can be executed together.
 type Scene struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
+	Icon      string    `json:"icon,omitempty"`    // Phosphor icon name, e.g. "moon" (v0.15)
+	AreaID    string    `json:"area_id,omitempty"` // scope to single area (v0.15)
 	Actions   []Action  `json:"actions"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -96,6 +105,23 @@ func (sm *SceneManager) Delete(id string) bool {
 	return ok
 }
 
+// Update replaces the name, icon, area_id, and actions of an existing scene.
+func (sm *SceneManager) Update(id string, updated *Scene) bool {
+	sm.mu.Lock()
+	s, ok := sm.scenes[id]
+	if ok {
+		s.Name = updated.Name
+		s.Icon = updated.Icon
+		s.AreaID = updated.AreaID
+		s.Actions = updated.Actions
+	}
+	sm.mu.Unlock()
+	if ok {
+		sm.persist()
+	}
+	return ok
+}
+
 // Count returns the number of stored scenes.
 func (sm *SceneManager) Count() int {
 	sm.mu.RLock()
@@ -115,15 +141,31 @@ func (sm *SceneManager) Execute(id string, mqtt *MQTTClient) (*Scene, error) {
 		return nil, fmt.Errorf("MQTT not connected")
 	}
 	for _, action := range s.Actions {
-		payload, err := json.Marshal(action.Payload)
-		if err != nil {
-			return nil, fmt.Errorf("encode error for device %q: %w", action.DeviceID, err)
+		switch action.ActionType {
+		case "run_scene":
+			if action.RunSceneID != "" {
+				if _, err := sm.Execute(action.RunSceneID, mqtt); err != nil {
+					log.Printf("Scene %q → run_scene %q error: %v", s.Name, action.RunSceneID, err)
+				}
+			}
+		case "delay":
+			if action.DelayMs > 0 {
+				time.Sleep(time.Duration(action.DelayMs) * time.Millisecond)
+			}
+		default: // "device_state" or empty
+			if action.DeviceID == "" {
+				continue
+			}
+			payload, err := json.Marshal(action.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("encode error for device %q: %w", action.DeviceID, err)
+			}
+			topic := "propertycore/devices/" + action.DeviceID + "/cmd"
+			if err := mqtt.Publish(topic, payload); err != nil {
+				return nil, fmt.Errorf("publish error for device %q: %w", action.DeviceID, err)
+			}
+			log.Printf("Scene %q → MQTT %s: %s", s.Name, topic, payload)
 		}
-		topic := "propertycore/devices/" + action.DeviceID + "/cmd"
-		if err := mqtt.Publish(topic, payload); err != nil {
-			return nil, fmt.Errorf("publish error for device %q: %w", action.DeviceID, err)
-		}
-		log.Printf("Scene %q → MQTT %s: %s", s.Name, topic, payload)
 	}
 	return s, nil
 }

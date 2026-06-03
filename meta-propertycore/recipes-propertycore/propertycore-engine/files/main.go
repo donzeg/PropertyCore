@@ -1,4 +1,4 @@
-// PropertyCore Automation Engine — v0.14.0
+// PropertyCore Automation Engine — v0.15.0
 // Adds auth middleware on all API routes, session TTL (24h), PIN hashing for users,
 // InfluxDB field key sanitisation, rule operator alias (neq→ne), body size limit,
 // and generic error responses.
@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	version       = "0.14.0"
+	version       = "0.15.0"
 	httpPort      = "8080"
 	mqttDefault   = "localhost:1883"
 	influxDefault = "http://localhost:8086"
