@@ -796,6 +796,7 @@ custom_components/localtuya/
 | Phase | Section | Key Deliverable | Status |
 |---|---|---|---|
 | 1 | Foundation | Sidebar redesign (Phosphor icons, groups, collapse) + Login screen + Property page | ✅ Complete |
+| 1.5 | Overview | Overview page rebuild — hero stat cards, areas grid, live device state, activity feed, quick scenes | ✅ Complete |
 | 2 | Devices | 7 device-category config panels (relay, dimmer, AC, curtain, keypad, wall panel, remote) | ✅ Complete |
 | 3 | Add Device | Add Device wizard — Tasmota/ESPHome/Shelly/Zigbee/Tuya/PropertyCore onboarding + generated configs | ✅ Complete (commit `0f62293`) |
 | 4 | Automation | Full scene/rule/schedule builder with complete action + condition model | ✅ Complete (commit pending) |

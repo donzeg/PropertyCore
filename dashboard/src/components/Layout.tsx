@@ -30,8 +30,16 @@ import {
   WifiHigh,
   X,
   FloppyDisk,
+  PlugsConnected,
+  SunDim,
+  Thermometer,
+  Rows,
+  LockKey,
+  SecurityCamera,
+  GridNine,
+  TerminalWindow,
 } from '@phosphor-icons/react'
-import { getStatus, getProperty, getWsUrl } from '../api'
+import { getStatus, getProperty, getDevices, getWsUrl } from '../api'
 import { useTheme } from '../App'
 import type { HubStatus, Property, Device } from '../types'
 
@@ -56,6 +64,21 @@ type NavSection = {
 
 // ─── Static nav sections ──────────────────────────────────────────────────────
 
+// Maps device type values (from engine API) to sidebar nav item metadata.
+// Items appear under the Devices section when ≥1 device of that type exists.
+const DEVICE_TYPE_NAV: Record<string, { label: string; icon: Icon }> = {
+  relay:          { label: 'Relay Modules',  icon: PlugsConnected  },
+  dimmer:         { label: 'Dimmers',        icon: SunDim          },
+  ac_gateway:     { label: 'AC Gateways',    icon: Thermometer     },
+  curtain:        { label: 'Curtains',       icon: Rows            },
+  sensor:         { label: 'Sensors',        icon: WifiHigh        },
+  keypad:         { label: 'Keypads',        icon: GridNine        },
+  wall_panel:     { label: 'Wall Panels',    icon: TerminalWindow  },
+  smart_remote:   { label: 'Smart Remotes',  icon: Television      },
+  camera:         { label: 'Cameras',        icon: SecurityCamera  },
+  access_control: { label: 'Access Control', icon: LockKey         },
+}
+
 const CORE_SECTIONS: NavSection[] = [
   {
     heading: 'Overview',
@@ -69,12 +92,6 @@ const CORE_SECTIONS: NavSection[] = [
       { to: 'property',  label: 'Property', icon: Buildings,   live: true },
       { to: 'floors',    label: 'Floors',   icon: StackSimple, live: true },
       { to: 'areas',     label: 'Areas',    icon: GridFour,    live: true },
-    ],
-  },
-  {
-    heading: 'Devices',
-    items: [
-      { to: 'devices', label: 'Devices', icon: HardDrives, live: true },
     ],
   },
   {
@@ -105,9 +122,9 @@ const FUTURE_SECTIONS: NavSection[] = [
   {
     heading: 'Energy',
     items: [
-      { to: 'energy',    label: 'Energy',     icon: Sun,         live: false },
-      { to: 'water',     label: 'Water',      icon: Drop,        live: false },
-      { to: 'generator', label: 'Generator',  icon: Wrench,      live: false },
+      { to: 'energy',           label: 'Energy',    icon: Sun,    live: true  },
+      { to: 'energy/water',     label: 'Water',     icon: Drop,   live: true  },
+      { to: 'energy/generator', label: 'Generator', icon: Wrench, live: true  },
     ],
   },
   {
@@ -134,9 +151,10 @@ const FUTURE_SECTIONS: NavSection[] = [
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const [status,   setStatus]   = useState<HubStatus | null>(null)
-  const [property, setProperty] = useState<Property | null>(null)
-  const [collapsed, setCollapsed] = useState(false)
+  const [status,      setStatus]      = useState<HubStatus | null>(null)
+  const [property,    setProperty]    = useState<Property | null>(null)
+  const [collapsed,   setCollapsed]   = useState(false)
+  const [deviceTypes, setDeviceTypes] = useState<Set<string>>(new Set())
   const { theme, toggle } = useTheme()
 
   useEffect(() => {
@@ -148,6 +166,13 @@ export default function Layout() {
 
   useEffect(() => {
     getProperty().then(setProperty).catch(() => {})
+  }, [])
+
+  // Fetch all devices on mount to derive the set of present device types.
+  useEffect(() => {
+    getDevices()
+      .then((devs) => setDeviceTypes(new Set(devs.map((d) => d.type))))
+      .catch(() => {})
   }, [])
 
   const navigate = useNavigate()
@@ -164,15 +189,43 @@ export default function Layout() {
           setNewDeviceNotifs(prev =>
             prev.some(d => d.id === msg.data.id) ? prev : [...prev, msg.data]
           )
+          // Add the new device's type to the nav set
+          setDeviceTypes(prev => {
+            if (prev.has(msg.data.type)) return prev
+            const next = new Set(prev)
+            next.add(msg.data.type)
+            return next
+          })
         }
       } catch { /* ignore */ }
     }
     return () => ws.close()
   }, [])
 
-  // Build full section list — conditionally inject Hospitality for hotels
+  // Build the Devices section dynamically: "All Devices" + one item per present type.
+  const devicesSection: NavSection = {
+    heading: 'Devices',
+    items: [
+      { to: 'devices', label: 'All Devices', icon: HardDrives, live: true },
+      ...Array.from(deviceTypes)
+        .filter((t) => t in DEVICE_TYPE_NAV)
+        .sort()
+        .map((t) => ({
+          to: `devices`,        // all type-specific items link to the devices page for now
+          label: DEVICE_TYPE_NAV[t].label,
+          icon: DEVICE_TYPE_NAV[t].icon,
+          live: true as const,
+        })),
+    ],
+  }
+
+  // Build full section list — inject Devices section after Property, then Automation, etc.
   const sections: NavSection[] = [
-    ...CORE_SECTIONS,
+    CORE_SECTIONS[0], // Overview
+    CORE_SECTIONS[1], // Property
+    devicesSection,
+    CORE_SECTIONS[2], // Automation
+    CORE_SECTIONS[3], // Access
     ...(property?.type === 'hotel' ? [HOSPITALITY_SECTION] : []),
     ...FUTURE_SECTIONS,
   ]
@@ -217,7 +270,7 @@ export default function Layout() {
                   {section.items.map(({ to, label, icon: IconComp, live }) =>
                     live ? (
                       <NavLink
-                        key={to}
+                        key={label}
                         to={to}
                         title={collapsed ? label : undefined}
                         className={({ isActive }) =>
@@ -235,7 +288,7 @@ export default function Layout() {
                       </NavLink>
                     ) : (
                       <span
-                        key={to}
+                        key={label}
                         title={collapsed ? label : undefined}
                         className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm
                                     text-zinc-300 dark:text-zinc-700 cursor-not-allowed opacity-60

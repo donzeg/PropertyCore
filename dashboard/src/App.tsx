@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import ChangePassword from './pages/ChangePassword'
 import Overview from './pages/Overview'
 import Floors from './pages/Floors'
 import Areas from './pages/Areas'
@@ -12,6 +13,10 @@ import Schedules from './pages/Schedules'
 import Users from './pages/Users'
 import PropertyPage from './pages/Property'
 import FirmwareFlash from './pages/system/FirmwareFlash'
+import EnergyDashboard from './pages/energy/EnergyDashboard'
+import InverterSetup from './pages/energy/InverterSetup'
+import WaterConfig from './pages/energy/WaterConfig'
+import GeneratorConfig from './pages/energy/GeneratorConfig'
 
 // ─── Theme context ────────────────────────────────────────────────────────────
 
@@ -92,6 +97,14 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
+            path="/change-password"
+            element={
+              <RequireAuth>
+                <ChangePassword />
+              </RequireAuth>
+            }
+          />
+          <Route
             path="/"
             element={
               <RequireAuth>
@@ -110,6 +123,10 @@ export default function App() {
             <Route path="schedules"      element={<Schedules />} />
             <Route path="users"          element={<Users />} />
             <Route path="firmware-flash" element={<FirmwareFlash />} />
+            <Route path="energy"           element={<EnergyDashboard />} />
+            <Route path="energy/inverter"  element={<InverterSetup />} />
+            <Route path="energy/water"     element={<WaterConfig />} />
+            <Route path="energy/generator" element={<GeneratorConfig />} />
           </Route>
         </Routes>
       </BrowserRouter>

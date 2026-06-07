@@ -89,7 +89,7 @@ export interface Scene {
 export interface RuleCondition {
   device_id: string
   field: string
-  operator: string   // "eq" | "neq" | "gt" | "lt"
+  operator: string   // "eq" | "ne" | "gt" | "lt" | "gte" | "lte"
   value: unknown
 }
 
@@ -144,4 +144,60 @@ export interface User {
   role: UserRole
   area_ids: string[]
   created_at: string
+}
+
+// ─── Energy ──────────────────────────────────────────────────────────────────
+
+export interface EnergyLive {
+  solar_w:      number | null
+  battery_w:    number | null
+  grid_w:       number | null
+  load_w:       number | null
+  battery_soc:  number | null
+  grid_present: boolean | null
+  timestamp:    string
+}
+
+export type InverterBrand = 'deye' | 'growatt' | 'sofar' | 'goodwe' | 'sunsynk' | 'victron' | 'other'
+
+export interface InverterConfig {
+  enabled:       boolean
+  brand:         InverterBrand
+  model:         string
+  port:          string
+  baud_rate:     number
+  slave_addr:    number
+  poll_interval: number
+  device_id:     string
+  updated_at:    string
+}
+
+export interface WaterConfig {
+  enabled:           boolean
+  tank_capacity_l:   number
+  sensor_full_cm:    number
+  sensor_empty_cm:   number
+  pump_start_pct:    number
+  pump_stop_pct:     number
+  pump_max_run_min:  number
+  flow_pulse_per_l:  number
+  leak_alert_l_per_h: number
+  tank_device_id:    string
+  pump_device_id:    string
+  flow_device_id:    string
+  updated_at:        string
+}
+
+export interface GeneratorConfig {
+  enabled:            boolean
+  start_delay_s:      number
+  stop_delay_s:       number
+  battery_start_pct:  number
+  fuel_sensor_full_v: number
+  fuel_sensor_empty_v: number
+  maintenance_hours:  number
+  runtime_hours:      number
+  gen_device_id:      string
+  fuel_device_id:     string
+  updated_at:         string
 }

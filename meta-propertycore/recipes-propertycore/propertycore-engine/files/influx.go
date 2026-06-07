@@ -6,8 +6,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +100,22 @@ func (iw *InfluxWriter) writeLine(line string) {
 	if resp.StatusCode >= 400 {
 		iw.logErr(fmt.Sprintf("write returned HTTP %d", resp.StatusCode))
 	}
+}
+
+// Query executes a InfluxQL query and returns the raw JSON response body.
+// Used by the energy history proxy endpoint.
+func (iw *InfluxWriter) Query(q string) ([]byte, error) {
+	queryURL := fmt.Sprintf("%s/query?db=%s&q=%s", iw.url, iw.db, url.QueryEscape(q))
+	resp, err := iw.client.Get(queryURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
 // logErr logs an InfluxDB error at most once per errLogEvery interval.

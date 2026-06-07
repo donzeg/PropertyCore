@@ -1,8 +1,7 @@
-// PropertyCore Automation Engine — v0.15.0
-// Adds auth middleware on all API routes, session TTL (24h), PIN hashing for users,
-// InfluxDB field key sanitisation, rule operator alias (neq→ne), body size limit,
-// and generic error responses.
-// Architecture: mqtt.go + state.go + device.go + scene.go + rule.go + store.go + area.go + floor.go + property.go + user.go + scheduler.go + auth.go + admin.go + api.go + ws.go + influx.go
+// PropertyCore Automation Engine — v0.16.0
+// Adds energy management: inverter, water, generator config singletons,
+// GET /api/v1/energy/live (power flow snapshot), GET /api/v1/energy/history
+// (InfluxDB proxy), GET|PATCH /api/v1/inverter|water|generator.
 package main
 
 import (
@@ -17,7 +16,7 @@ import (
 )
 
 const (
-	version       = "0.15.0"
+	version       = "0.16.0"
 	httpPort      = "8080"
 	mqttDefault   = "localhost:1883"
 	influxDefault = "http://localhost:8086"
@@ -180,6 +179,23 @@ func main() {
 	defer scheduler.Stop()
 	defer registry.PersistAll() // flush Online/LastSeen on clean shutdown
 
+	// Energy managers — inverter, water, generator (singletons)
+	inverter := NewInverterManager(store)
+	if stored := store.LoadInverter(); stored != nil {
+		inverter.Load(stored)
+		log.Printf("Loaded inverter config: brand=%s port=%s", stored.Brand, stored.Port)
+	}
+	water := NewWaterManager(store)
+	if stored := store.LoadWater(); stored != nil {
+		water.Load(stored)
+		log.Printf("Loaded water config: tank=%.0fL", stored.TankCapacityL)
+	}
+	generator := NewGeneratorManager(store)
+	if stored := store.LoadGenerator(); stored != nil {
+		generator.Load(stored)
+		log.Printf("Loaded generator config: start_delay=%ds", stored.StartDelayS)
+	}
+
 	// Announce hub online once MQTT connects
 	go announceOnline(mqttClient)
 
@@ -219,6 +235,11 @@ func main() {
 	mux.HandleFunc("/api/v1/admin/accounts/", auth(makeAdminAccountsHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/schedules", auth(makeSchedulesHandler(scheduler)))
 	mux.HandleFunc("/api/v1/schedules/", auth(makeSchedulesHandler(scheduler)))
+	// Energy endpoints
+	mux.HandleFunc("/api/v1/energy/", auth(makeEnergyHandler(state, inverter, influx)))
+	mux.HandleFunc("/api/v1/inverter", auth(makeInverterHandler(inverter)))
+	mux.HandleFunc("/api/v1/water", auth(makeWaterHandler(water)))
+	mux.HandleFunc("/api/v1/generator", auth(makeGeneratorHandler(generator)))
 
 	srv := &http.Server{
 		Addr:         ":" + httpPort,

@@ -17,7 +17,7 @@ class Area {
   factory Area.fromJson(Map<String, dynamic> j) => Area(
         id: j['id'] as String? ?? '',
         name: j['name'] as String? ?? '',
-        type: j['type'] as String? ?? '',
+        type: j['area_type'] as String? ?? '',
         floorId: j['floor_id'] as String? ?? '',
       );
 }
@@ -36,7 +36,7 @@ class Floor {
   factory Floor.fromJson(Map<String, dynamic> j) => Floor(
         id: j['id'] as String? ?? '',
         name: j['name'] as String? ?? '',
-        displayOrder: j['display_order'] as int? ?? 0,
+        displayOrder: j['order'] as int? ?? 0,
       );
 }
 

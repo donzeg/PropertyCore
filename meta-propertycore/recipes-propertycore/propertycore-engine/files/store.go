@@ -217,3 +217,59 @@ func (s *Store) SaveAdminAccounts(accounts []*AdminAccount) {
 		log.Printf("store: save admin accounts error: %v", err)
 	}
 }
+
+// ─── Energy singletons ────────────────────────────────────────────────────────
+
+func (s *Store) LoadInverter() *InverterConfig {
+	var c InverterConfig
+	if err := s.loadJSON("inverter.json", &c); err != nil {
+		log.Printf("store: load inverter error: %v", err)
+		return nil
+	}
+	if c.Port == "" {
+		return nil
+	}
+	return &c
+}
+
+func (s *Store) SaveInverter(c *InverterConfig) {
+	if err := s.saveJSON("inverter.json", c); err != nil {
+		log.Printf("store: save inverter error: %v", err)
+	}
+}
+
+func (s *Store) LoadWater() *WaterConfig {
+	var c WaterConfig
+	if err := s.loadJSON("water.json", &c); err != nil {
+		log.Printf("store: load water error: %v", err)
+		return nil
+	}
+	if c.TankCapacityL == 0 {
+		return nil
+	}
+	return &c
+}
+
+func (s *Store) SaveWater(c *WaterConfig) {
+	if err := s.saveJSON("water.json", c); err != nil {
+		log.Printf("store: save water error: %v", err)
+	}
+}
+
+func (s *Store) LoadGenerator() *GeneratorConfig {
+	var c GeneratorConfig
+	if err := s.loadJSON("generator.json", &c); err != nil {
+		log.Printf("store: load generator error: %v", err)
+		return nil
+	}
+	if c.StartDelayS == 0 && !c.Enabled {
+		return nil
+	}
+	return &c
+}
+
+func (s *Store) SaveGenerator(c *GeneratorConfig) {
+	if err := s.saveJSON("generator.json", c); err != nil {
+		log.Printf("store: save generator error: %v", err)
+	}
+}

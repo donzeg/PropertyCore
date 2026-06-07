@@ -2,8 +2,11 @@ import type {
   Area,
   ConditionClause,
   Device,
+  EnergyLive,
   Floor,
+  GeneratorConfig,
   HubStatus,
+  InverterConfig,
   Property,
   Rule,
   Scene,
@@ -11,6 +14,7 @@ import type {
   Schedule,
   User,
   UserRole,
+  WaterConfig,
 } from './types'
 
 // ─── Core fetch helper ────────────────────────────────────────────────────────
@@ -234,6 +238,12 @@ export async function logout(): Promise<void> {
   }
 }
 
+export const changeAdminPassword = (id: string, password: string): Promise<void> =>
+  req<void>(`/api/v1/admin/accounts/${id}/change-password`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
+
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 // The engine's /ws endpoint broadcasts device state updates to all connected clients.
 // In dev mode (Vite on :5173) we connect directly to the engine on :8080.
@@ -241,8 +251,44 @@ export async function logout(): Promise<void> {
 
 export function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  // In Vite dev (any non-standard port) we proxy /ws through the dev server,
-  // which forwards to the engine on :8080 via the vite.config ws proxy.
-  // In production (port 80/443) we use the same origin.
+  // In dev (Vite), use the same host so the Vite proxy intercepts /ws → :8080.
+  // In production (same-origin nginx) this also resolves correctly.
   return `${proto}//${window.location.host}/ws`
 }
+
+// ─── Energy ──────────────────────────────────────────────────────────────────
+
+export const getEnergyLive = (): Promise<EnergyLive> =>
+  req<EnergyLive>('/api/v1/energy/live')
+
+export const getEnergyHistory = (params: {
+  from?: string
+  to?: string
+  interval?: string
+  field?: string
+}): Promise<unknown> => {
+  const q = new URLSearchParams()
+  if (params.from)     q.set('from',     params.from)
+  if (params.to)       q.set('to',       params.to)
+  if (params.interval) q.set('interval', params.interval)
+  if (params.field)    q.set('field',    params.field)
+  return req<unknown>(`/api/v1/energy/history?${q.toString()}`)
+}
+
+export const getInverter = (): Promise<InverterConfig> =>
+  req<InverterConfig>('/api/v1/inverter')
+
+export const updateInverter = (body: Partial<InverterConfig>): Promise<InverterConfig> =>
+  req<InverterConfig>('/api/v1/inverter', { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getWater = (): Promise<WaterConfig> =>
+  req<WaterConfig>('/api/v1/water')
+
+export const updateWater = (body: Partial<WaterConfig>): Promise<WaterConfig> =>
+  req<WaterConfig>('/api/v1/water', { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getGenerator = (): Promise<GeneratorConfig> =>
+  req<GeneratorConfig>('/api/v1/generator')
+
+export const updateGenerator = (body: Partial<GeneratorConfig>): Promise<GeneratorConfig> =>
+  req<GeneratorConfig>('/api/v1/generator', { method: 'PATCH', body: JSON.stringify(body) })

@@ -56,7 +56,11 @@ export default function Login() {
         const data = await res.json()
         localStorage.setItem('pc-admin-token', data.token)
         localStorage.setItem('pc-admin-id',    data.account.id)
-        navigate('/overview', { replace: true })
+        if (data.account.force_change_password) {
+          navigate('/change-password', { replace: true })
+        } else {
+          navigate('/overview', { replace: true })
+        }
       }
     } catch {
       setError('Connection error. Is the engine running?')

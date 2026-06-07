@@ -150,13 +150,15 @@ Phase 1 spec: "idle > 30 min → show countdown → auto-logout". Not implemente
 
 ### FIX-010 — Dynamic device-category sidebar items not implemented
 **File:** `dashboard/src/components/Layout.tsx`  
-**Status:** 🟡 Open (Phase 1 spec requirement not met)
+**Status:** ✅ Fixed — `Layout.tsx` fetches devices on mount, builds `devicesSection` dynamically from `DEVICE_TYPE_NAV` map. `device_new` WS event adds new types in real-time.
 
 Phase 1 spec: "Device-category nav items derive from `GET /api/v1/devices` — show Relay Modules, Dimmers, AC Gateways, etc. if ≥1 device of that type exists." The sidebar has a single static `Devices` item regardless of what device types are registered.
 
 `Layout.tsx` already has a `device_new` WebSocket listener but doesn't build per-type nav items from it.
 
 **Fix:** In `Layout.tsx`, fetch `GET /api/v1/devices` on mount. Derive a `Set<string>` of present device types. Dynamically inject per-type nav items under the Devices section based on this set. Refresh the set when `device_new` or `device_offline` WS events arrive.
+
+**Status:** ✅ Fixed — `Layout.tsx` now fetches devices on mount, builds `devicesSection` dynamically with per-type items from `DEVICE_TYPE_NAV` map. `device_new` WS event adds new types in real-time.
 
 ---
 
@@ -201,15 +203,7 @@ Pattern: `fmt.Fprintf(w, `{"error":"invalid JSON: %s"}`, err.Error())`
 
 ### FIX-014 — Pre-built binary tracked in git
 **File:** `meta-propertycore/recipes-propertycore/propertycore-engine/files/propertycore-engine`  
-**Status:** ✅ Fixed (engine v0.14.0 — `makeAuthHandler` comment updated to reference `area_ids`)
-
-A pre-built `propertycore-engine` binary (≈10 MB) is committed to the repo. This bloats git history with a new 10 MB object on every rebuild.
-
-**Fix:** Add to `.gitignore`:
-```
-meta-propertycore/recipes-propertycore/propertycore-engine/files/propertycore-engine
-```
-The binary should only ever live in `build-qemu/tmp/` (Yocto build output) or `~/.local/bin/` (pm2 runtime), never in version control.
+**Status:** ✅ Fixed — already in `.gitignore` and not tracked in git
 
 ---
 
@@ -225,11 +219,7 @@ The function comment still says "role + room_ids" — this field was renamed to 
 
 ### FIX-016 — `Devices.tsx` uses `window.confirm()` while other pages use Modal
 **File:** `dashboard/src/pages/Devices.tsx` (handleDelete)  
-**Status:** 🟢 Open
-
-`handleDelete` calls `window.confirm()` for the destructive delete confirmation. Every other page in the dashboard uses the `<Modal>` component. This is a UX inconsistency.
-
-**Fix:** Replace `window.confirm()` with a `<Modal>` confirmation dialog using the existing `Modal` component.
+**Status:** ✅ Fixed (commit `148f603`) — `handleDelete` sets `pendingDelete` state; `<Modal>` confirmation dialog used, matching all other pages.
 
 ---
 
@@ -258,3 +248,29 @@ Recommended scope for v0.14:
 - FIX-012 (MaxBytesReader — one line per handler)
 - FIX-013 (generic error messages)
 - FIX-015 (comment fix)
+
+---
+
+## Issues resolved in June 2026 review
+
+### FIX-017 — Mobile `Area.fromJson` reads wrong field key
+**File:** `mobile/lib/models.dart`  
+**Status:** ✅ Fixed — `j['type']` → `j['area_type']`  
+Engine returns `area_type`; the model was reading `type`, silently returning empty strings for every area.
+
+### FIX-018 — Mobile `Floor.fromJson` reads wrong field key
+**File:** `mobile/lib/models.dart`  
+**Status:** ✅ Fixed — `j['display_order']` → `j['order']`  
+Engine serialises the field as `order`; the model was reading `display_order`, silently returning `0` for every floor.
+
+### FIX-019 — No server-side rate limiting on `POST /api/v1/admin/login`
+**File:** `meta-propertycore/recipes-propertycore/propertycore-engine/files/api.go`  
+**Status:** ✅ Fixed — `loginAttemptTracker` in `makeAdminAuthHandler`: 5 failures within 5 min → 5-min lockout per IP. Returns 429 with `Retry-After` header. Resets on successful login. Failed attempts logged server-side.
+
+### FIX-020 — No `force_change_password` enforcement on dashboard
+**Files:** `dashboard/src/pages/Login.tsx`, `dashboard/src/pages/ChangePassword.tsx` (new), `dashboard/src/App.tsx`, `dashboard/src/api.ts`  
+**Status:** ✅ Fixed — Login now checks `account.force_change_password` after successful auth; if true, redirects to `/change-password`. New `ChangePassword.tsx` full-screen page (min 8 chars, confirm field). `changeAdminPassword()` added to `api.ts`. Route added in `App.tsx` inside `RequireAuth`.
+
+### FIX-010 — Dynamic device-category sidebar items (previously open)
+**File:** `dashboard/src/components/Layout.tsx`  
+**Status:** ✅ Fixed — `Layout` now fetches `GET /api/v1/devices` on mount, derives `deviceTypes` Set, builds `devicesSection` dynamically from `DEVICE_TYPE_NAV` map (relay, dimmer, ac_gateway, curtain, sensor, keypad, wall_panel, smart_remote, camera, access_control). New device types appear live via `device_new` WS event.

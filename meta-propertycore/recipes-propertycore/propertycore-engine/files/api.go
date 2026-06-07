@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -1042,11 +1044,96 @@ func adminTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
+// loginAttemptTracker enforces per-IP brute-force protection on admin login.
+// After loginMaxAttempts failures within loginWindow the IP is blocked for
+// loginLockout duration. All state is in-memory and resets on engine restart.
+type loginAttemptTracker struct {
+	mu      sync.Mutex
+	records map[string]*loginRecord
+}
+
+type loginRecord struct {
+	attempts    int
+	firstAt     time.Time
+	lockedUntil time.Time
+}
+
+const (
+	loginMaxAttempts = 5
+	loginWindow      = 5 * time.Minute
+	loginLockout     = 5 * time.Minute
+)
+
+func newLoginAttemptTracker() *loginAttemptTracker {
+	return &loginAttemptTracker{records: make(map[string]*loginRecord)}
+}
+
+// check returns (allowed, retryAfterSeconds). If allowed==false the caller must
+// return 429.
+func (t *loginAttemptTracker) check(ip string) (allowed bool, retryAfter int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	rec, ok := t.records[ip]
+	if !ok {
+		return true, 0
+	}
+	if !rec.lockedUntil.IsZero() && time.Now().Before(rec.lockedUntil) {
+		secs := int(time.Until(rec.lockedUntil).Seconds()) + 1
+		return false, secs
+	}
+	// Reset window if it has expired
+	if time.Since(rec.firstAt) > loginWindow {
+		rec.attempts = 0
+		rec.firstAt = time.Time{}
+		rec.lockedUntil = time.Time{}
+	}
+	return true, 0
+}
+
+// record marks a failed attempt for ip. Returns true if the IP is now locked.
+func (t *loginAttemptTracker) record(ip string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	rec, ok := t.records[ip]
+	if !ok {
+		rec = &loginRecord{}
+		t.records[ip] = rec
+	}
+	if rec.attempts == 0 {
+		rec.firstAt = time.Now()
+	}
+	rec.attempts++
+	if rec.attempts >= loginMaxAttempts {
+		rec.lockedUntil = time.Now().Add(loginLockout)
+		rec.attempts = 0
+		rec.firstAt = time.Time{}
+	}
+}
+
+// reset clears the attempt record for ip after a successful login.
+func (t *loginAttemptTracker) reset(ip string) {
+	t.mu.Lock()
+	delete(t.records, ip)
+	t.mu.Unlock()
+}
+
+// clientIP extracts the remote IP address from a request (strips port).
+func clientIP(r *http.Request) string {
+	// Trust X-Forwarded-For only if explicitly needed; for a LAN hub use RemoteAddr.
+	host := r.RemoteAddr
+	if idx := strings.LastIndex(host, ":"); idx > 0 {
+		host = host[:idx]
+	}
+	return host
+}
+
 // makeAdminAuthHandler handles dashboard admin login and logout.
 //
 //	POST /api/v1/admin/login   → {"username":"...","password":"..."} → {"token":"...","account":{...}}
 //	POST /api/v1/admin/logout  → Authorization: Bearer <token>       → 204
 func makeAdminAuthHandler(am *AdminManager, sm *SessionManager) http.HandlerFunc {
+	tracker := newLoginAttemptTracker()
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/admin")
@@ -1073,6 +1160,15 @@ func makeAdminAuthHandler(am *AdminManager, sm *SessionManager) http.HandlerFunc
 			return
 		}
 
+		// Rate-limit check
+		ip := clientIP(r)
+		if allowed, retryAfter := tracker.check(ip); !allowed {
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+			w.WriteHeader(http.StatusTooManyRequests)
+			fmt.Fprintf(w, `{"error":"too many login attempts","retry_after":%d}`, retryAfter)
+			return
+		}
+
 		var body struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
@@ -1085,11 +1181,14 @@ func makeAdminAuthHandler(am *AdminManager, sm *SessionManager) http.HandlerFunc
 
 		account, ok := am.Authenticate(body.Username, body.Password)
 		if !ok {
+			tracker.record(ip)
+			log.Printf("admin login failed for username=%q from %s", body.Username, ip)
 			w.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprint(w, `{"error":"invalid username or password"}`)
 			return
 		}
 
+		tracker.reset(ip)
 		token, err := sm.NewSession(account.ID)
 		if err != nil {
 			http.Error(w, `{"error":"could not create session"}`, http.StatusInternalServerError)
@@ -1199,5 +1298,170 @@ func makeAdminAccountsHandler(am *AdminManager, sm *SessionManager) http.Handler
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// ─── Energy handlers ─────────────────────────────────────────────────────────
+
+// makeEnergyHandler handles the energy live snapshot and InfluxDB history proxy:
+//
+//	GET /api/v1/energy/live     → current power flow snapshot (from device state)
+//	GET /api/v1/energy/history  → proxied InfluxDB time-series (from=&to=&interval=)
+func makeEnergyHandler(state *StateManager, inv *InverterManager, influxW *InfluxWriter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/energy")
+		suffix = strings.Trim(suffix, "/")
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		switch suffix {
+		case "live":
+			live := BuildEnergyLive(state, inv)
+			if err := json.NewEncoder(w).Encode(live); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+
+		case "history":
+			// Proxy a simple InfluxDB query.
+			// Parameters: from (RFC3339), to (RFC3339), interval (e.g. "1h"), field (e.g. "solar_w")
+			q := r.URL.Query()
+			from := q.Get("from")
+			to := q.Get("to")
+			interval := q.Get("interval")
+			field := q.Get("field")
+			if field == "" {
+				field = "solar_w"
+			}
+			if interval == "" {
+				interval = "1h"
+			}
+			if from == "" {
+				from = "now() - 24h"
+			} else {
+				from = "'" + from + "'"
+			}
+			if to == "" {
+				to = "now()"
+			} else {
+				to = "'" + to + "'"
+			}
+			influxQuery := fmt.Sprintf(
+				`SELECT mean("%s") AS value FROM "device_state" WHERE time >= %s AND time <= %s GROUP BY time(%s) fill(null)`,
+				sanitizeInfluxTag(field), from, to, interval,
+			)
+			result, err := influxW.Query(influxQuery)
+			if err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				fmt.Fprintf(w, `{"error":"influxdb query failed","detail":%q}`, err.Error())
+				return
+			}
+			w.Write(result)
+
+		default:
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}
+	}
+}
+
+// makeInverterHandler handles inverter config:
+//
+//	GET   /api/v1/inverter  → get inverter config
+//	PATCH /api/v1/inverter  → update inverter config
+func makeInverterHandler(m *InverterManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := m.Update(body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeWaterHandler handles water system config:
+//
+//	GET   /api/v1/water  → get water config
+//	PATCH /api/v1/water  → update water config
+func makeWaterHandler(m *WaterManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := m.Update(body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// makeGeneratorHandler handles generator config:
+//
+//	GET   /api/v1/generator  → get generator config
+//	PATCH /api/v1/generator  → update generator config
+func makeGeneratorHandler(m *GeneratorManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		case http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := m.Update(body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if err := json.NewEncoder(w).Encode(m.Get()); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
 	}
 }
