@@ -1,0 +1,180 @@
+substitutions:
+  devicename: relay-06
+  friendly_name: Relay 06
+  wifi_ssid: PropertyCore
+  wifi_password: changeme
+  broker_ip: 192.168.31.223
+  fw_version: pc-esphome-0.1.0
+
+esphome:
+  name: ${devicename}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+ota:
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  ap:
+    ssid: ${friendly_name} Fallback
+    password: propertycore
+
+captive_portal:
+
+mqtt:
+  broker: ${broker_ip}
+  port: 1883
+  topic_prefix: propertycore/devices/${devicename}
+  birth_message:
+    topic: propertycore/devices/${devicename}/state
+    payload: '{"type":"relay","online":true}'
+  will_message:
+    topic: propertycore/devices/${devicename}/state
+    payload: '{"type":"relay","online":false}'
+  on_connect:
+    then:
+      - script.execute: publish_state
+  on_disconnect:
+    then:
+      - mqtt.publish:
+          topic: propertycore/devices/${devicename}/state
+          payload: '{"type":"relay","online":false}'
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: ip_addr
+
+globals:
+  - id: ch1_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: ch2_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: ch3_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: ch4_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: ch5_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: ch6_state
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+
+script:
+  - id: publish_state
+    then:
+      - mqtt.publish_json:
+          topic: propertycore/devices/${devicename}/state
+          payload: |-
+            root["type"] = "relay";
+            root["online"] = true;
+            root["fw_version"] = "${fw_version}";
+            root["mac"] = WiFi.macAddress().c_str();
+            root["ip"] = id(ip_addr).state.c_str();
+            root["ch1"] = id(ch1_state);
+            root["ch2"] = id(ch2_state);
+            root["ch3"] = id(ch3_state);
+            root["ch4"] = id(ch4_state);
+            root["ch5"] = id(ch5_state);
+            root["ch6"] = id(ch6_state);
+
+switch:
+  - platform: gpio
+    id: relay_ch1
+    name: ${friendly_name} CH1
+    pin: 16
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch1_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch1_state, value: 'false' }
+      - script.execute: publish_state
+
+  - platform: gpio
+    id: relay_ch2
+    name: ${friendly_name} CH2
+    pin: 17
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch2_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch2_state, value: 'false' }
+      - script.execute: publish_state
+
+  - platform: gpio
+    id: relay_ch3
+    name: ${friendly_name} CH3
+    pin: 18
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch3_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch3_state, value: 'false' }
+      - script.execute: publish_state
+
+  - platform: gpio
+    id: relay_ch4
+    name: ${friendly_name} CH4
+    pin: 19
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch4_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch4_state, value: 'false' }
+      - script.execute: publish_state
+
+  - platform: gpio
+    id: relay_ch5
+    name: ${friendly_name} CH5
+    pin: 21
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch5_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch5_state, value: 'false' }
+      - script.execute: publish_state
+
+  - platform: gpio
+    id: relay_ch6
+    name: ${friendly_name} CH6
+    pin: 22
+    inverted: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - globals.set: { id: ch6_state, value: 'true' }
+      - script.execute: publish_state
+    on_turn_off:
+      - globals.set: { id: ch6_state, value: 'false' }
+      - script.execute: publish_state
+
+on_boot:
+  then:
+    - script.execute: publish_state

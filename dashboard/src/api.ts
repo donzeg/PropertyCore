@@ -1,4 +1,5 @@
 import type {
+  AdapterHealth,
   Area,
   ConditionClause,
   Device,
@@ -12,6 +13,7 @@ import type {
   Scene,
   SceneAction,
   Schedule,
+  UnclaimedNode,
   User,
   UserRole,
   WaterConfig,
@@ -256,6 +258,24 @@ export function getWsUrl(): string {
   return `${proto}//${window.location.host}/ws`
 }
 
+// ESPHome dashboard URL — default to same-origin reverse-proxied path.
+export function getEspHomeUrl(): string {
+  // In Vite dev (`:5173`), route directly to the ESPHome service (`:6052`).
+  // The ESPHome UI serves absolute asset paths (e.g. /app.<hash>.js), so
+  // proxying under /esphome/ in dev causes asset 404s on the Vite origin.
+  if (window.location.port === '5173') {
+    return `${window.location.protocol}//${window.location.hostname}:6052/`
+  }
+  return '/esphome/'
+}
+
+export function getZigbee2MQTTUrl(): string {
+  if (window.location.port === '5173') {
+    return `${window.location.protocol}//${window.location.hostname}:8099/`
+  }
+  return '/zigbee2mqtt/'
+}
+
 // ─── Energy ──────────────────────────────────────────────────────────────────
 
 export const getEnergyLive = (): Promise<EnergyLive> =>
@@ -292,3 +312,34 @@ export const getGenerator = (): Promise<GeneratorConfig> =>
 
 export const updateGenerator = (body: Partial<GeneratorConfig>): Promise<GeneratorConfig> =>
   req<GeneratorConfig>('/api/v1/generator', { method: 'PATCH', body: JSON.stringify(body) })
+
+// ─── Discovery ────────────────────────────────────────────────────────────────
+
+export const getUnclaimedNodes = (): Promise<UnclaimedNode[]> =>
+  req<UnclaimedNode[]>('/api/v1/discovery/unclaimed')
+
+export const deleteUnclaimedNode = (deviceId: string): Promise<void> =>
+  req<void>(`/api/v1/discovery/unclaimed/${encodeURIComponent(deviceId)}`, {
+    method: 'DELETE',
+  })
+
+export const purgeUnclaimedNodes = (body: {
+  ids?: string[]
+  older_than_min?: number
+  offline_only?: boolean
+}): Promise<{ removed: number }> =>
+  req<{ removed: number }>('/api/v1/discovery/unclaimed/purge', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const claimDevice = (body: {
+  device_id: string
+  display_name: string
+  area_id?: string
+  device_type: string
+}): Promise<Device> =>
+  req<Device>('/api/v1/discovery/claim', { method: 'POST', body: JSON.stringify(body) })
+
+export const getAdapterHealth = (): Promise<AdapterHealth[]> =>
+  req<AdapterHealth[]>('/api/v1/adapters/health')

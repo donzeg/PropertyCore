@@ -55,32 +55,26 @@ class ApiClient {
 
   // ── Auth ─────────────────────────────────────────────────────────────────
 
-  Future<String> login(String userId, String pin) async {
-    // Engine matches by PIN only — no user_id in request body
+  Future<Map<String, dynamic>> login(String pin) async {
+    // Engine matches by PIN only and returns both token + user profile.
     final data =
-        await _post('/api/v1/auth', {'pin': pin})
-            as Map<String, dynamic>;
-    return data['token'] as String;
+        await _post('/api/v1/auth', {'pin': pin}) as Map<String, dynamic>;
+    return data;
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
   Future<List<User>> getUsers() async {
-    final data = await _get('/api/v1/users') as List<dynamic>;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(User.fromJson)
-        .toList();
+    final data = await _get('/api/v1/auth/users') as List<dynamic>;
+    return data.whereType<Map<String, dynamic>>().map(User.fromJson).toList();
   }
 
   // ── Floors ────────────────────────────────────────────────────────────────
 
   Future<List<Floor>> getFloors() async {
     final data = await _get('/api/v1/floors') as List<dynamic>;
-    final floors = data
-        .whereType<Map<String, dynamic>>()
-        .map(Floor.fromJson)
-        .toList();
+    final floors =
+        data.whereType<Map<String, dynamic>>().map(Floor.fromJson).toList();
     floors.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
     return floors;
   }
@@ -89,20 +83,14 @@ class ApiClient {
 
   Future<List<Area>> getAreas() async {
     final data = await _get('/api/v1/areas') as List<dynamic>;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(Area.fromJson)
-        .toList();
+    return data.whereType<Map<String, dynamic>>().map(Area.fromJson).toList();
   }
 
   // ── Devices ───────────────────────────────────────────────────────────────
 
   Future<List<Device>> getDevices() async {
     final data = await _get('/api/v1/devices') as List<dynamic>;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(Device.fromJson)
-        .toList();
+    return data.whereType<Map<String, dynamic>>().map(Device.fromJson).toList();
   }
 
   Future<void> sendDeviceCommand(
@@ -114,10 +102,7 @@ class ApiClient {
 
   Future<List<Scene>> getScenes() async {
     final data = await _get('/api/v1/scenes') as List<dynamic>;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(Scene.fromJson)
-        .toList();
+    return data.whereType<Map<String, dynamic>>().map(Scene.fromJson).toList();
   }
 
   Future<void> executeScene(String sceneId) async {

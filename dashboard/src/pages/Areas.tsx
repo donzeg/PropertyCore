@@ -174,17 +174,21 @@ export function ModalFooter({
   onCancel,
   onSave,
   saveLabel = 'Save',
+  saving = false,
+  cancelDisabled = false,
 }: {
   onCancel: () => void
   onSave: () => void
   saveLabel?: string
+  saving?: boolean
+  cancelDisabled?: boolean
 }) {
   return (
     <div className="flex justify-end gap-2 pt-2">
-      <button onClick={onCancel} className="btn-ghost">
+      <button onClick={onCancel} className="btn-ghost" disabled={cancelDisabled || saving}>
         Cancel
       </button>
-      <button onClick={onSave} className="btn-primary">
+      <button onClick={onSave} className="btn-primary" disabled={saving}>
         {saveLabel}
       </button>
     </div>

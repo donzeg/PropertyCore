@@ -163,19 +163,34 @@ class AppState extends ChangeNotifier {
   // ── Hub connection setup ──────────────────────────────────────────────────
 
   Future<bool> connectToHub(String ip) async {
-    final url = ip.startsWith('http') ? ip : 'http://$ip';
-    final testApi = ApiClient(url);
-    try {
-      final status = await testApi.getStatus();
-      if (status['version'] == null) return false;
-      _hubIp = url;
-      _api = ApiClient(url);
-      await _prefs.setString('hub_ip', url);
-      notifyListeners();
-      return true;
-    } catch (_) {
-      return false;
+    final raw = ip.trim();
+    if (raw.isEmpty) return false;
+
+    final normalized = raw.startsWith('http') ? raw : 'http://$raw';
+    final parsed = Uri.tryParse(normalized);
+    if (parsed == null || parsed.host.isEmpty) return false;
+
+    final candidates = <String>[normalized];
+    if (!parsed.hasPort) {
+      candidates.add('${parsed.scheme}://${parsed.host}:8080');
     }
+
+    for (final candidate in candidates) {
+      final testApi = ApiClient(candidate);
+      try {
+        final status = await testApi.getStatus();
+        if (status['version'] == null) continue;
+        _hubIp = candidate;
+        _api = ApiClient(candidate);
+        await _prefs.setString('hub_ip', candidate);
+        notifyListeners();
+        return true;
+      } catch (_) {
+        // Try next candidate.
+      }
+    }
+
+    return false;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -191,24 +206,28 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String userId, String pin) async {
+  Future<bool> login(String pin) async {
     if (_api == null) return false;
     try {
-      final tok = await _api!.login(userId, pin);
+      final data = await _api!.login(pin);
+      final tok = data['token'] as String?;
+      final userData = data['user'] as Map<String, dynamic>?;
+      if (tok == null || tok.isEmpty || userData == null) {
+        logout();
+        return false;
+      }
+      final user = User.fromJson(userData);
       _token = tok;
-      _userId = userId;
-      final user = users.firstWhere(
-        (u) => u.id == userId,
-        orElse: () => User(id: userId, name: userId, role: 'guest'),
-      );
+      _userId = user.id;
       _userName = user.name;
       _api!.token = tok;
       await _prefs.setString('token', tok);
-      await _prefs.setString('user_id', userId);
+      await _prefs.setString('user_id', user.id);
       await _prefs.setString('user_name', _userName);
       notifyListeners();
       return true;
     } catch (_) {
+      logout();
       return false;
     }
   }
@@ -234,26 +253,36 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Fire all requests in parallel then collect
-      final fFloors = _api!.getFloors();
-      final fAreas = _api!.getAreas();
-      final fDevices = _api!.getDevices();
-      final fScenes = _api!.getScenes();
-      final fProperty = _api!.getProperty();
-      final fUsers = _api!.getUsers();
+      final results = await Future.wait<dynamic>([
+        _api!.getFloors(),
+        _api!.getAreas(),
+        _api!.getDevices(),
+        _api!.getScenes(),
+        _api!.getProperty(),
+        _api!.getUsers(),
+      ]);
 
-      floors = await fFloors;
-      areas = await fAreas;
-      devices = await fDevices;
-      scenes = await fScenes;
-      property = await fProperty;
-      users = await fUsers;
+      floors = results[0] as List<Floor>;
+      areas = results[1] as List<Area>;
+      devices = results[2] as List<Device>;
+      scenes = results[3] as List<Scene>;
+      property = results[4] as PropertyInfo;
+      users = results[5] as List<User>;
       error = null;
     } catch (e) {
-      error = e.toString();
+      if (e is ApiException && e.statusCode == 401) {
+        error = 'Session expired. Please login again.';
+        logout();
+      } else {
+        error = e.toString();
+      }
     } finally {
       loading = false;
       notifyListeners();
+    }
+
+    if (!isLoggedIn) {
+      return;
     }
 
     _connectWS();
@@ -329,7 +358,12 @@ class AppState extends ChangeNotifier {
       final s = await _api!.getStatus();
       mqttConnected = s['mqtt_connected'] as bool? ?? false;
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 401) {
+        error = 'Session expired. Please login again.';
+        logout();
+      }
+    }
   }
 
   @override

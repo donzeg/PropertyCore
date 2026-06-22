@@ -13,6 +13,9 @@ import Schedules from './pages/Schedules'
 import Users from './pages/Users'
 import PropertyPage from './pages/Property'
 import FirmwareFlash from './pages/system/FirmwareFlash'
+import EspHomeBuilder from './pages/system/EspHomeBuilder'
+import Integrations from './pages/system/Integrations'
+import Zigbee2MQTT from './pages/system/Zigbee2MQTT'
 import EnergyDashboard from './pages/energy/EnergyDashboard'
 import InverterSetup from './pages/energy/InverterSetup'
 import WaterConfig from './pages/energy/WaterConfig'
@@ -123,6 +126,9 @@ export default function App() {
             <Route path="schedules"      element={<Schedules />} />
             <Route path="users"          element={<Users />} />
             <Route path="firmware-flash" element={<FirmwareFlash />} />
+            <Route path="esphome"        element={<EspHomeBuilder />} />
+            <Route path="zigbee2mqtt"    element={<Zigbee2MQTT />} />
+            <Route path="integrations"   element={<Integrations />} />
             <Route path="energy"           element={<EnergyDashboard />} />
             <Route path="energy/inverter"  element={<InverterSetup />} />
             <Route path="energy/water"     element={<WaterConfig />} />

@@ -22,6 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _usersLoading = true;
   String? _error;
 
+  bool get _pinOnlyMode => !_usersLoading && context.read<AppState>().users.isEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -48,13 +50,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_selectedUser == null || _pin.isEmpty) return;
+    if (_pin.isEmpty) return;
     setState(() {
       _loginLoading = true;
       _error = null;
     });
     final state = context.read<AppState>();
-    final ok = await state.login(_selectedUser!.id, _pin);
+    final ok = await state.login(_pin);
     if (!mounted) return;
     if (ok) {
       await state.loadAll();
@@ -89,10 +91,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 _UserList(
                   users: state.users,
                   loading: _usersLoading,
+                  pinOnlyMode: _pinOnlyMode,
                   pc: pc,
                   accent: accent,
                   onSelect: (u) => setState(() {
                     _selectedUser = u;
+                    _pin = '';
+                    _error = null;
+                  }),
+                  onPinOnly: () => setState(() {
+                    _selectedUser = const User(
+                      id: '__pin_only__',
+                      name: 'PIN Login',
+                      role: 'guest',
+                    );
                     _pin = '';
                     _error = null;
                   }),
@@ -128,16 +140,20 @@ class _LoginScreenState extends State<LoginScreen> {
 class _UserList extends StatelessWidget {
   final List<User> users;
   final bool loading;
+  final bool pinOnlyMode;
   final PCColors pc;
   final AccentPalette accent;
   final ValueChanged<User> onSelect;
+  final VoidCallback onPinOnly;
 
   const _UserList({
     required this.users,
     required this.loading,
+    required this.pinOnlyMode,
     required this.pc,
     required this.accent,
     required this.onSelect,
+    required this.onPinOnly,
   });
 
   @override
@@ -163,10 +179,34 @@ class _UserList extends StatelessWidget {
         if (loading)
           const Center(child: CircularProgressIndicator())
         else if (users.isEmpty)
-          Text(
-            'No users found.\nCreate users in the dashboard first.',
-            style: TextStyle(color: pc.text2, fontSize: 14),
-            textAlign: TextAlign.center,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'User list is not available before login.',
+                style: TextStyle(color: pc.text2, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: onPinOnly,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: pc.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: pc.border),
+                  ),
+                  child: Text(
+                    pinOnlyMode ? 'Continue with PIN' : 'Try PIN login',
+                    style: TextStyle(
+                      color: accent.a400,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           )
         else
           ...users.map(

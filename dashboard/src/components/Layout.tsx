@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Icon } from '@phosphor-icons/react'
 import {
@@ -38,6 +38,7 @@ import {
   SecurityCamera,
   GridNine,
   TerminalWindow,
+  Cpu,
 } from '@phosphor-icons/react'
 import { getStatus, getProperty, getDevices, getWsUrl } from '../api'
 import { useTheme } from '../App'
@@ -137,12 +138,11 @@ const FUTURE_SECTIONS: NavSection[] = [
   {
     heading: 'System',
     items: [
-      { to: 'firmware-flash', label: 'Firmware Flash', icon: FloppyDisk,     live: true  },
       { to: 'notifications',  label: 'Notifications',  icon: Bell,           live: false },
       { to: 'ota',            label: 'OTA Updates',    icon: ArrowsClockwise,live: false },
       { to: 'logs',           label: 'Logs',           icon: ClipboardText,  live: false },
       { to: 'backup',         label: 'Backup',         icon: Package,        live: false },
-      { to: 'integrations',   label: 'Integrations',   icon: Plug,           live: false },
+      { to: 'integrations',   label: 'Integrations',   icon: Plug,           live: true  },
       { to: 'api',            label: 'API Keys',       icon: Key,            live: false },
     ],
   },
@@ -157,6 +157,12 @@ export default function Layout() {
   const [deviceTypes, setDeviceTypes] = useState<Set<string>>(new Set())
   const { theme, toggle } = useTheme()
 
+  const syncDeviceTypes = () => {
+    getDevices()
+      .then((devs) => setDeviceTypes(new Set(devs.map((d) => d.type))))
+      .catch(() => {})
+  }
+
   useEffect(() => {
     const poll = () => getStatus().then(setStatus).catch(() => {})
     poll()
@@ -168,14 +174,14 @@ export default function Layout() {
     getProperty().then(setProperty).catch(() => {})
   }, [])
 
-  // Fetch all devices on mount to derive the set of present device types.
   useEffect(() => {
-    getDevices()
-      .then((devs) => setDeviceTypes(new Set(devs.map((d) => d.type))))
-      .catch(() => {})
+    syncDeviceTypes()
+    const id = setInterval(syncDeviceTypes, 15_000)
+    return () => clearInterval(id)
   }, [])
 
   const navigate = useNavigate()
+  const location = useLocation()
   const [newDeviceNotifs, setNewDeviceNotifs] = useState<Device[]>([])
   const dismissNotif = (id: string) =>
     setNewDeviceNotifs(prev => prev.filter(d => d.id !== id))
@@ -189,13 +195,10 @@ export default function Layout() {
           setNewDeviceNotifs(prev =>
             prev.some(d => d.id === msg.data.id) ? prev : [...prev, msg.data]
           )
-          // Add the new device's type to the nav set
-          setDeviceTypes(prev => {
-            if (prev.has(msg.data.type)) return prev
-            const next = new Set(prev)
-            next.add(msg.data.type)
-            return next
-          })
+          syncDeviceTypes()
+        }
+        if (msg.event === 'device_claimed' || msg.event === 'device_deleted') {
+          syncDeviceTypes()
         }
       } catch { /* ignore */ }
     }
@@ -209,9 +212,9 @@ export default function Layout() {
       { to: 'devices', label: 'All Devices', icon: HardDrives, live: true },
       ...Array.from(deviceTypes)
         .filter((t) => t in DEVICE_TYPE_NAV)
-        .sort()
+        .sort((a, b) => DEVICE_TYPE_NAV[a].label.localeCompare(DEVICE_TYPE_NAV[b].label))
         .map((t) => ({
-          to: `devices`,        // all type-specific items link to the devices page for now
+          to: `devices?type=${encodeURIComponent(t)}`,
           label: DEVICE_TYPE_NAV[t].label,
           icon: DEVICE_TYPE_NAV[t].icon,
           live: true as const,
@@ -267,21 +270,32 @@ export default function Layout() {
                   </p>
                 )}
                 <div className="space-y-0.5">
-                  {section.items.map(({ to, label, icon: IconComp, live }) =>
+                  {section.items.map(({ to, label, icon: IconComp, live }) => {
+                    const currentType = new URLSearchParams(location.search).get('type')
+                    const typeMatch = to.match(/^devices\?type=(.+)$/)
+                    const typeForLink = typeMatch ? decodeURIComponent(typeMatch[1]) : null
+
+                    return (
                     live ? (
                       <NavLink
                         key={label}
                         to={to}
                         title={collapsed ? label : undefined}
-                        className={({ isActive }) =>
+                        className={({ isActive }) => {
+                          const active = typeForLink
+                            ? (isActive && currentType === typeForLink)
+                            : (to === 'devices' ? (isActive && !currentType) : isActive)
+
+                          return (
                           `flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                             collapsed ? 'justify-center' : ''
                           } ${
-                            isActive
+                            active
                               ? 'bg-brand/10 text-brand dark:bg-brand/15 dark:text-brand-400'
                               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                           }`
-                        }
+                          )
+                        }}
                       >
                         <IconComp size={16} weight="regular" className="flex-shrink-0" />
                         {!collapsed && label}
@@ -298,7 +312,8 @@ export default function Layout() {
                         {!collapsed && label}
                       </span>
                     )
-                  )}
+                    )
+                  })}
                 </div>
               </div>
             ))}

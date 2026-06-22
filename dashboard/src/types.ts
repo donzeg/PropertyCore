@@ -64,6 +64,31 @@ export interface Device {
   state?: Record<string, unknown>
 }
 
+// ─── Unclaimed Node ────────────────────────────────────────────────────────
+
+export interface UnclaimedNode {
+  device_id: string
+  hardware_uid?: string  // MAC address
+  type: string
+  online: boolean
+  fw_version?: string
+  ip?: string
+  source: string        // "esphome" | "zigbee2mqtt" | "tasmota" | ...
+  first_seen: string
+  last_seen: string
+}
+
+// ─── Adapter Health ────────────────────────────────────────────────────────
+
+export interface AdapterHealth {
+  source: string
+  status: 'healthy' | 'idle' | 'unseen'
+  total_seen: number
+  online_count: number
+  last_seen?: string
+  last_seen_ago_s: number
+}
+
 // ─── Scene ───────────────────────────────────────────────────────────────────
 
 export interface SceneAction {

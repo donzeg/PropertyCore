@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -64,6 +63,13 @@ func main() {
 		log.Printf("Loaded %d device(s) from registry", len(stored))
 	}
 
+	// Unclaimed node manager — tracks ESPHome devices seen via MQTT but not yet registered
+	unclaimed := NewUnclaimedNodeManager(store, nil) // hub assigned later
+	if stored := store.LoadUnclaimedNodes(); len(stored) > 0 {
+		unclaimed.Load(stored)
+		log.Printf("Loaded %d unclaimed node(s) from store", len(stored))
+	}
+
 	// Scene manager
 	scenes := NewSceneManager(store)
 	if stored := store.LoadScenes(); len(stored) > 0 {
@@ -78,16 +84,28 @@ func main() {
 
 	// WebSocket hub — broadcasts device_state, scene_executed, and rule_fired events
 	wsHub := NewWSHub()
+	unclaimed.hub = wsHub // inject hub for broadcasting events
 	state.OnUpdate = func(dev *DeviceState) {
+		source := "esphome"
+		if src, ok := dev.State["source"].(string); ok && src != "" {
+			source = src
+		}
 		// Check for LWT offline notification: {"online":false,...}
 		if onlineVal, ok := dev.State["online"]; ok {
 			if isOnline, ok := onlineVal.(bool); ok && !isOnline {
 				registry.MarkOffline(dev.ID)
+				unclaimed.MarkOffline(dev.ID)
 				if info, ok2 := registry.Get(dev.ID); ok2 {
 					wsHub.Broadcast("device_offline", info)
 				}
 				return
 			}
+		}
+		// Check if device is registered; if not, track as unclaimed
+		if _, ok := registry.Get(dev.ID); !ok {
+			unclaimed.Track(dev.ID, dev.Type, source, dev.State)
+			// Don't process further — unclaimed devices don't trigger rules or state broadcasts
+			return
 		}
 		isNew, cameOnline := registry.MarkSeen(dev.ID, dev.Type)
 		wsHub.Broadcast("device_state", dev)
@@ -107,9 +125,18 @@ func main() {
 	// MQTT client — connects to Mosquitto, subscribes to device state topics
 	mqttClient := NewMQTTClient(mqttAddr, "propertycore-engine", func(topic string, payload []byte) {
 		log.Printf("MQTT ← %s: %s", topic, payload)
-		state.HandleMessage(topic, payload)
+		normalizedTopic, normalizedPayload, ok := normalizeInboundMQTT(topic, payload)
+		if !ok {
+			return
+		}
+		state.HandleMessage(normalizedTopic, normalizedPayload)
 	})
 	mqttClient.Subscribe("propertycore/devices/+/state")
+	mqttClient.Subscribe("zigbee2mqtt/#")
+	mqttClient.Subscribe("tele/+/STATE")
+	mqttClient.Subscribe("tele/+/LWT")
+	mqttClient.Subscribe("stat/+/POWER")
+	mqttClient.Subscribe("shellies/#")
 	mqttClient.Start()
 	defer mqttClient.Stop()
 
@@ -178,7 +205,8 @@ func main() {
 	}
 	scheduler.Start()
 	defer scheduler.Stop()
-	defer registry.PersistAll() // flush Online/LastSeen on clean shutdown
+	defer registry.PersistAll()  // flush Online/LastSeen on clean shutdown
+	defer unclaimed.PersistAll() // flush unclaimed nodes on clean shutdown
 
 	// Energy managers — inverter, water, generator (singletons)
 	inverter := NewInverterManager(store)
@@ -201,39 +229,14 @@ func main() {
 	go announceOnline(mqttClient)
 
 	// HTTP API
-	// auth wraps a handler with both session validation and body size limit.
-	// Use for all routes that require a valid admin dashboard token.
+	// auth — admin dashboard token required (CRUD mutations, admin-only features).
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return requireAdminAuth(adminSessions, withBodyLimit(h))
 	}
-	// mobileAuth accepts either an admin dashboard token or a mobile PIN token.
-	// This keeps the mobile app functional while preserving a single auth path.
-	mobileAuth := func(h http.HandlerFunc) http.HandlerFunc {
-		return withBodyLimit(func(w http.ResponseWriter, r *http.Request) {
-			token := adminTokenFromRequest(r)
-			if _, ok := adminSessions.ValidateToken(token); ok {
-				h(w, r)
-				return
-			}
-			if _, ok := sessions.ValidateToken(token); ok {
-				h(w, r)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, `{"error":"unauthorized"}`)
-		})
-	}
-	// usersAuth allows unauthenticated reads for mobile login user listing,
-	// while keeping all write operations admin-protected.
-	usersAuth := func(h http.HandlerFunc) http.HandlerFunc {
-		return withBodyLimit(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				h(w, r)
-				return
-			}
-			requireAdminAuth(adminSessions, h)(w, r)
-		})
+	// shared — accepts either an admin token or a mobile PIN session token.
+	// Used for read/control endpoints that both the dashboard and mobile app need.
+	shared := func(h http.HandlerFunc) http.HandlerFunc {
+		return requireAnyAuth(adminSessions, sessions, withBodyLimit(h))
 	}
 
 	mux := http.NewServeMux()
@@ -247,25 +250,31 @@ func main() {
 	// Admin auth — login/logout are public (they create/destroy the session)
 	mux.HandleFunc("/api/v1/admin/login", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/admin/logout", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
-	// Protected routes — admin-only unless explicitly shared with mobileAuth.
-	mux.HandleFunc("/api/v1/devices", mobileAuth(makeDevicesHandler(registry, state, mqttClient)))
-	mux.HandleFunc("/api/v1/devices/", mobileAuth(makeDevicesHandler(registry, state, mqttClient)))
-	mux.HandleFunc("/api/v1/scenes", mobileAuth(makeScenesHandler(scenes, mqttClient, wsHub)))
-	mux.HandleFunc("/api/v1/scenes/", mobileAuth(makeScenesHandler(scenes, mqttClient, wsHub)))
+	// Shared routes — readable by both admin dashboard and mobile app.
+	// Mobile app can GET and execute/command; admin can also POST/PATCH/DELETE.
+	mux.HandleFunc("/api/v1/devices", shared(makeDevicesHandler(registry, state, mqttClient)))
+	mux.HandleFunc("/api/v1/devices/", shared(makeDevicesHandler(registry, state, mqttClient)))
+	// ESPHome discovery — unclaimed nodes and claiming
+	mux.HandleFunc("/api/v1/discovery", auth(makeDiscoveryHandler(registry, unclaimed)))
+	mux.HandleFunc("/api/v1/discovery/", auth(makeDiscoveryHandler(registry, unclaimed)))
+	mux.HandleFunc("/api/v1/adapters/health", auth(makeAdapterHealthHandler(unclaimed)))
+	mux.HandleFunc("/api/v1/scenes", shared(makeScenesHandler(scenes, mqttClient, wsHub)))
+	mux.HandleFunc("/api/v1/scenes/", shared(makeScenesHandler(scenes, mqttClient, wsHub)))
+	mux.HandleFunc("/api/v1/areas", shared(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/areas/", shared(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/floors", shared(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/floors/", shared(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/property", shared(makePropertyHandler(prop)))
+	// Admin-only routes — dashboard CRUD only.
 	mux.HandleFunc("/api/v1/rules", auth(makeRulesHandler(rulesEngine)))
 	mux.HandleFunc("/api/v1/rules/", auth(makeRulesHandler(rulesEngine)))
-	mux.HandleFunc("/api/v1/areas", mobileAuth(makeAreasHandler(areas)))
-	mux.HandleFunc("/api/v1/areas/", mobileAuth(makeAreasHandler(areas)))
-	mux.HandleFunc("/api/v1/floors", mobileAuth(makeFloorsHandler(floors)))
-	mux.HandleFunc("/api/v1/floors/", mobileAuth(makeFloorsHandler(floors)))
-	mux.HandleFunc("/api/v1/property", mobileAuth(makePropertyHandler(prop)))
-	mux.HandleFunc("/api/v1/users", usersAuth(makeUsersHandler(users)))
-	mux.HandleFunc("/api/v1/users/", usersAuth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/users", auth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/users/", auth(makeUsersHandler(users)))
 	mux.HandleFunc("/api/v1/admin/accounts", auth(makeAdminAccountsHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/admin/accounts/", auth(makeAdminAccountsHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/schedules", auth(makeSchedulesHandler(scheduler)))
 	mux.HandleFunc("/api/v1/schedules/", auth(makeSchedulesHandler(scheduler)))
-	// Energy endpoints
+	// Energy endpoints — admin only (configuration)
 	mux.HandleFunc("/api/v1/energy/", auth(makeEnergyHandler(state, inverter, influx)))
 	mux.HandleFunc("/api/v1/inverter", auth(makeInverterHandler(inverter)))
 	mux.HandleFunc("/api/v1/water", auth(makeWaterHandler(water)))
@@ -311,33 +320,4 @@ func announceOnline(c *MQTTClient) {
 		}
 		time.Sleep(time.Second)
 	}
-}
-
-// withCORS adds permissive CORS headers for browser-based clients.
-// Use CORS_ALLOW_ORIGIN to override the default "*" origin.
-func withCORS(next http.Handler) http.Handler {
-	allowedOrigin := os.Getenv("CORS_ALLOW_ORIGIN")
-	if allowedOrigin == "" {
-		allowedOrigin = "*"
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if allowedOrigin == "*" {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-		} else if origin != "" && strings.EqualFold(origin, allowedOrigin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-		}
-
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }

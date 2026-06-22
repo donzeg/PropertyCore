@@ -22,3 +22,6 @@ mobile/ios/.symlinks/
 
 # Firmware — local credentials (never commit real WiFi/MQTT creds)
 firmware/pc-rly-wifi/main/config.h
+
+# ESPHome local dashboard project data (generated from local container use)
+infra/esphome/config/

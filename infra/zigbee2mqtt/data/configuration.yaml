@@ -1,0 +1,15 @@
+homeassistant: false
+permit_join: false
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://127.0.0.1:1883
+serial:
+  port: /dev/ttyACM0
+frontend:
+  enabled: true
+  port: 8099
+advanced:
+  log_level: info
+  channel: 11
+device_options:
+  legacy: false

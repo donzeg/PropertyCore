@@ -201,6 +201,23 @@ func (s *Store) SaveDevices(devices []*DeviceInfo) {
 	}
 }
 
+// LoadUnclaimedNodes returns all persisted unclaimed nodes, or nil if none stored yet.
+func (s *Store) LoadUnclaimedNodes() []*UnclaimedNode {
+	var nodes []*UnclaimedNode
+	if err := s.loadJSON("unclaimed_nodes.json", &nodes); err != nil {
+		log.Printf("store: load unclaimed nodes error: %v", err)
+		return nil
+	}
+	return nodes
+}
+
+// SaveUnclaimedNodes persists the unclaimed nodes list atomically.
+func (s *Store) SaveUnclaimedNodes(nodes []*UnclaimedNode) {
+	if err := s.saveJSON("unclaimed_nodes.json", nodes); err != nil {
+		log.Printf("store: save unclaimed nodes error: %v", err)
+	}
+}
+
 // LoadAdminAccounts returns all persisted dashboard admin accounts, or nil if none stored yet.
 func (s *Store) LoadAdminAccounts() []*AdminAccount {
 	var accounts []*AdminAccount

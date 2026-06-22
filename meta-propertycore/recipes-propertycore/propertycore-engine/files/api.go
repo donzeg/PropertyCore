@@ -219,6 +219,213 @@ func makeDevicesHandler(registry *DeviceRegistry, state *StateManager, mqtt *MQT
 	}
 }
 
+// makeDiscoveryHandler handles device discovery and claiming endpoints:
+//
+//	GET    /api/v1/discovery/unclaimed            → list all unclaimed nodes
+//	POST   /api/v1/discovery/claim                → claim an unclaimed node
+//	DELETE /api/v1/discovery/unclaimed/{id}       → remove one unclaimed node
+//	POST   /api/v1/discovery/unclaimed/purge      → bulk purge by IDs and/or age
+func makeDiscoveryHandler(registry *DeviceRegistry, unclaimed *UnclaimedNodeManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/discovery")
+		path = strings.Trim(path, "/")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case path == "unclaimed":
+			if r.Method != http.MethodGet {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			nodes := unclaimed.GetAll()
+			if err := json.NewEncoder(w).Encode(nodes); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+
+		case path == "claim":
+			if r.Method != http.MethodPost {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			var req struct {
+				DeviceID    string `json:"device_id"`
+				DisplayName string `json:"display_name"`
+				AreaID      string `json:"area_id,omitempty"`
+				DeviceType  string `json:"device_type,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid request body"}`)
+				return
+			}
+			if req.DeviceID == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"device_id is required"}`)
+				return
+			}
+
+			// Claim the unclaimed node
+			d, ok := unclaimed.Claim(req.DeviceID)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"unclaimed device not found"}`)
+				return
+			}
+
+			// Apply user-provided metadata
+			if req.DisplayName != "" {
+				d.Name = req.DisplayName
+			}
+			if req.AreaID != "" {
+				d.AreaID = req.AreaID
+			}
+			if req.DeviceType != "" {
+				d.Type = req.DeviceType
+			}
+
+			// Register in device registry
+			registry.Register(d)
+
+			w.WriteHeader(http.StatusCreated)
+			if err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"id":   d.ID,
+				"name": d.Name,
+				"type": d.Type,
+			}); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+
+		case strings.HasPrefix(path, "unclaimed/"):
+			suffix := strings.TrimPrefix(path, "unclaimed/")
+			if suffix == "purge" {
+				if r.Method != http.MethodPost {
+					http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+					return
+				}
+				var req struct {
+					IDs          []string `json:"ids"`
+					OlderThanMin int      `json:"older_than_min"`
+					OfflineOnly  bool     `json:"offline_only"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprint(w, `{"error":"invalid request body"}`)
+					return
+				}
+
+				removed := 0
+				if len(req.IDs) > 0 {
+					removed += unclaimed.PurgeByIDs(req.IDs)
+				}
+				if req.OlderThanMin > 0 {
+					removed += unclaimed.PurgeOlderThan(time.Duration(req.OlderThanMin)*time.Minute, req.OfflineOnly)
+				}
+
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{
+					"removed": removed,
+				}); err != nil {
+					http.Error(w, "encode error", http.StatusInternalServerError)
+				}
+				return
+			}
+
+			if r.Method != http.MethodDelete {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			id := strings.TrimSpace(suffix)
+			if id == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"device_id is required"}`)
+				return
+			}
+			if !unclaimed.Remove(id) {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprintf(w, `{"error":"unclaimed device not found"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		default:
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}
+	}
+}
+
+// makeAdapterHealthHandler returns per-source adapter telemetry derived from
+// discovery events and unclaimed node tracking.
+//
+//	GET /api/v1/adapters/health
+func makeAdapterHealthHandler(unclaimed *UnclaimedNodeManager) http.HandlerFunc {
+	type adapterHealth struct {
+		Source       string     `json:"source"`
+		Status       string     `json:"status"` // healthy | idle | unseen
+		TotalSeen    int        `json:"total_seen"`
+		OnlineCount  int        `json:"online_count"`
+		LastSeen     *time.Time `json:"last_seen,omitempty"`
+		LastSeenAgoS int64      `json:"last_seen_ago_s"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		now := time.Now().UTC()
+		nodes := unclaimed.GetAll()
+		known := []string{"esphome", "zigbee2mqtt", "tasmota", "shelly", "tuya", "propertycore"}
+
+		bySource := map[string]*adapterHealth{}
+		for _, src := range known {
+			bySource[src] = &adapterHealth{Source: src, Status: "unseen"}
+		}
+
+		for _, n := range nodes {
+			src := n.Source
+			if src == "" {
+				src = "unknown"
+			}
+			entry, ok := bySource[src]
+			if !ok {
+				entry = &adapterHealth{Source: src, Status: "unseen"}
+				bySource[src] = entry
+			}
+			entry.TotalSeen++
+			if n.Online {
+				entry.OnlineCount++
+			}
+			if entry.LastSeen == nil || n.LastSeen.After(*entry.LastSeen) {
+				ts := n.LastSeen
+				entry.LastSeen = &ts
+			}
+		}
+
+		out := make([]*adapterHealth, 0, len(bySource))
+		for _, h := range bySource {
+			if h.LastSeen == nil {
+				h.Status = "unseen"
+				h.LastSeenAgoS = -1
+			} else {
+				delta := now.Sub(*h.LastSeen)
+				h.LastSeenAgoS = int64(delta.Seconds())
+				if delta <= 5*time.Minute {
+					h.Status = "healthy"
+				} else {
+					h.Status = "idle"
+				}
+			}
+			out = append(out, h)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(out); err != nil {
+			http.Error(w, "encode error", http.StatusInternalServerError)
+		}
+	}
+}
+
 // makeScenesHandler handles all scene CRUD and execution endpoints:
 //
 //	GET    /api/v1/scenes           → list all scenes
@@ -798,6 +1005,22 @@ func makeAuthHandler(um *UserManager, sm *SessionManager) http.HandlerFunc {
 		suffix = strings.Trim(suffix, "/")
 		w.Header().Set("Content-Type", "application/json")
 
+		if suffix == "users" {
+			if r.Method != http.MethodGet {
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+				return
+			}
+			all := um.GetAll()
+			out := make([]*userPublic, 0, len(all))
+			for _, u := range all {
+				out = append(out, toPublic(u))
+			}
+			if err := json.NewEncoder(w).Encode(out); err != nil {
+				http.Error(w, "encode error", http.StatusInternalServerError)
+			}
+			return
+		}
+
 		if suffix == "logout" {
 			if r.Method != http.MethodPost {
 				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -1025,6 +1248,26 @@ func requireAdminAuth(sm *SessionManager, next http.HandlerFunc) http.HandlerFun
 	}
 }
 
+// requireAnyAuth accepts either an admin session token or a mobile PIN session
+// token. Use for endpoints that both the dashboard and the mobile app need to
+// access (floors, areas, devices, scenes, property — read + mobile control).
+func requireAnyAuth(adminSM, mobileSM *SessionManager, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := adminTokenFromRequest(r)
+		if _, ok := adminSM.ValidateToken(token); ok {
+			next(w, r)
+			return
+		}
+		if _, ok := mobileSM.ValidateToken(token); ok {
+			next(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":"unauthorized"}`)
+	}
+}
+
 // withBodyLimit wraps a handler to limit request bodies to 1 MiB, preventing
 // memory exhaustion from oversized payloads.
 func withBodyLimit(next http.HandlerFunc) http.HandlerFunc {
@@ -1032,6 +1275,26 @@ func withBodyLimit(next http.HandlerFunc) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 		next(w, r)
 	}
+}
+
+// withCORS enables browser access for web clients running on a different origin
+// (for example Flutter web dev server on localhost).
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != "" {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "600")
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // adminTokenFromRequest extracts the Bearer token from the Authorization header.

@@ -48,6 +48,10 @@ class _MainNavState extends State<MainNav> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
+    if (!state.isLoggedIn) {
+      return const LoginScreen();
+    }
+
     Widget content = Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,

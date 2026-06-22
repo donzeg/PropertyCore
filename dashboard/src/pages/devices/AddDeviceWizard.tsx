@@ -1,236 +1,223 @@
-import { useEffect, useRef, useState } from 'react'
-import { createDevice, getAreas, getWsUrl } from '../../api'
-import type { Area } from '../../types'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { claimDevice, getAreas, getUnclaimedNodes, getWsUrl } from '../../api'
+import type { Area, UnclaimedNode } from '../../types'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type FirmwareType = 'propertycore' | 'tasmota' | 'esphome' | 'shelly' | 'zigbee' | 'tuya' | 'manual'
 type DeviceType = 'relay' | 'dimmer' | 'ac_gateway' | 'curtain' | 'sensor' | 'keypad' | 'other'
 
 interface Props {
   onClose: () => void
   onDone: (deviceId: string) => void
+  initialDeviceId?: string
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const STEPS = ['Firmware', 'Identity', 'Setup', 'Waiting', 'Done']
-
-const FIRMWARE_OPTIONS: { value: FirmwareType; icon: string; label: string; desc: string }[] = [
-  { value: 'propertycore', icon: '🔷', label: 'PropertyCore',  desc: 'PC-RLY, PC-DIM, PC-AC-GW, PC-CRT modules' },
-  { value: 'tasmota',      icon: '🟠', label: 'Tasmota',       desc: 'Off-the-shelf relay/switch boards' },
-  { value: 'esphome',      icon: '🟢', label: 'ESPHome',       desc: 'Dev boards, custom sensors' },
-  { value: 'shelly',       icon: '⚪', label: 'Shelly',        desc: 'Shelly relay and dimmer modules' },
-  { value: 'zigbee',       icon: '🔵', label: 'Zigbee',        desc: 'Sensors, switches via Zigbee2MQTT' },
-  { value: 'tuya',         icon: '🟡', label: 'Tuya Local',    desc: 'Consumer Tuya-based devices' },
-  { value: 'manual',       icon: '⬛', label: 'Other / Manual', desc: 'Any device that speaks MQTT' },
-]
+const STEPS = ['Discover', 'Claim', 'Done']
 
 const DEVICE_TYPES: { value: DeviceType; label: string }[] = [
-  { value: 'relay',       label: 'Relay / Switch' },
-  { value: 'dimmer',      label: 'Dimmer' },
-  { value: 'ac_gateway',  label: 'AC Gateway' },
-  { value: 'curtain',     label: 'Curtain / Blind' },
-  { value: 'sensor',      label: 'Sensor' },
-  { value: 'keypad',      label: 'Keypad' },
-  { value: 'other',       label: 'Other' },
+  { value: 'relay', label: 'Relay / Switch' },
+  { value: 'dimmer', label: 'Dimmer' },
+  { value: 'ac_gateway', label: 'AC Gateway' },
+  { value: 'curtain', label: 'Curtain / Blind' },
+  { value: 'sensor', label: 'Sensor' },
+  { value: 'keypad', label: 'Keypad' },
+  { value: 'other', label: 'Other' },
 ]
 
-// ─── Root Wizard ──────────────────────────────────────────────────────────────
+const SOURCE_META: Record<string, { label: string; chip: string }> = {
+  esphome: {
+    label: 'ESPHome',
+    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  },
+  zigbee2mqtt: {
+    label: 'Zigbee2MQTT',
+    chip: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+  },
+  tasmota: {
+    label: 'Tasmota',
+    chip: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  },
+  shelly: {
+    label: 'Shelly',
+    chip: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  },
+}
 
-export default function AddDeviceWizard({ onClose, onDone }: Props) {
-  const [step, setStep]               = useState(0)
-  const [firmware, setFirmware]       = useState<FirmwareType | null>(null)
-  const [deviceId, setDeviceId]       = useState('')
-  const [name, setName]               = useState('')
-  const [deviceType, setDeviceType]   = useState<DeviceType>('relay')
-  const [areaId, setAreaId]           = useState('')
-  const [areas, setAreas]             = useState<Area[]>([])
-  const [error, setError]             = useState('')
-  const [registering, setRegistering] = useState(false)
-  const [wsStatus, setWsStatus]       = useState<'waiting' | 'connected' | 'timeout'>('waiting')
-  const [firstState, setFirstState]   = useState<Record<string, unknown> | null>(null)
+function sourceLabel(source: string): string {
+  return SOURCE_META[source]?.label || source
+}
 
-  const wsRef    = useRef<WebSocket | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+function inferDeviceType(node: UnclaimedNode): DeviceType {
+  const byType = (node.type || '').toLowerCase()
+  if (byType === 'relay' || byType === 'dimmer' || byType === 'ac_gateway' || byType === 'curtain' || byType === 'sensor' || byType === 'keypad') {
+    return byType as DeviceType
+  }
 
-  // Hub IP from browser URL (dashboard is served from the hub)
-  const hubIp = window.location.hostname
+  const id = node.device_id.toLowerCase()
+  if (node.source === 'zigbee2mqtt') {
+    if (id.includes('door') || id.includes('motion') || id.includes('temp') || id.includes('sensor')) return 'sensor'
+    if (id.includes('switch') || id.includes('relay') || id.includes('plug')) return 'relay'
+  }
+
+  if (node.source === 'tasmota') {
+    return 'relay'
+  }
+
+  return 'other'
+}
+
+export default function AddDeviceWizard({ onClose, onDone, initialDeviceId }: Props) {
+  const navigate = useNavigate()
+  const [step, setStep] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [unclaimed, setUnclaimed] = useState<UnclaimedNode[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
+  const [selectedID, setSelectedID] = useState(initialDeviceId ?? '')
+  const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [doneID, setDoneID] = useState('')
+
+  const [form, setForm] = useState({
+    display_name: '',
+    area_id: '',
+    device_type: 'relay' as DeviceType,
+  })
+
+  const selectedNode = useMemo(
+    () => unclaimed.find((n) => n.device_id === selectedID) ?? null,
+    [unclaimed, selectedID],
+  )
+  const sourceOptions = useMemo(
+    () => ['all', ...Array.from(new Set(unclaimed.map((n) => n.source))).sort()],
+    [unclaimed],
+  )
+  const filteredUnclaimed = useMemo(
+    () => sourceFilter === 'all' ? unclaimed : unclaimed.filter((n) => n.source === sourceFilter),
+    [unclaimed, sourceFilter],
+  )
+
+  const load = () => {
+    setLoading(true)
+    Promise.all([getUnclaimedNodes(), getAreas()])
+      .then(([u, a]) => {
+        setUnclaimed(u)
+        setAreas(a)
+        if (!selectedID && u.length > 0) {
+          setSelectedID(initialDeviceId && u.some((n) => n.device_id === initialDeviceId) ? initialDeviceId : u[0].device_id)
+        }
+      })
+      .catch(() => setError('Failed to load discovery data.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(load, [])
 
   useEffect(() => {
-    getAreas().then(setAreas).catch(() => {})
-  }, [])
-
-  // Step 3 (index 3) → open WebSocket and wait for device first message
-  useEffect(() => {
-    if (step !== 3) return
-
-    setWsStatus('waiting')
     const ws = new WebSocket(getWsUrl())
-    wsRef.current = ws
-
     ws.onmessage = (e) => {
       try {
-        const msg = JSON.parse(e.data as string)
-        if (msg.event === 'device_state' && msg.data?.id === deviceId) {
-          setWsStatus('connected')
-          setFirstState((msg.data.state as Record<string, unknown>) ?? null)
-          ws.close()
-          if (timerRef.current) clearTimeout(timerRef.current)
+        const msg = JSON.parse(e.data)
+        if (msg.event === 'device_unclaimed' && msg.data?.device_id) {
+          setUnclaimed((prev) => {
+            const idx = prev.findIndex((n) => n.device_id === msg.data.device_id)
+            if (idx === -1) return [msg.data, ...prev]
+            const copy = [...prev]
+            copy[idx] = { ...copy[idx], ...msg.data }
+            return copy
+          })
         }
-      } catch { /* ignore parse errors */ }
+        if (msg.event === 'device_claimed' && msg.data?.device_id) {
+          setUnclaimed((prev) => prev.filter((n) => n.device_id !== msg.data.device_id))
+          if (selectedID === msg.data.device_id) {
+            setSelectedID('')
+          }
+        }
+      } catch {
+        // ignore malformed WS payloads
+      }
     }
+    return () => ws.close()
+  }, [selectedID])
 
-    timerRef.current = setTimeout(() => {
-      setWsStatus('timeout')
-      ws.close()
-    }, 5 * 60 * 1000) // 5 minutes
+  useEffect(() => {
+    if (!selectedNode) return
+    const inferred = inferDeviceType(selectedNode)
+    setForm((f) => ({
+      ...f,
+      display_name: f.display_name || selectedNode.device_id,
+      device_type: inferred,
+    }))
+  }, [selectedNode])
 
-    return () => {
-      ws.close()
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [step, deviceId])
+  const goBack = () => {
+    setError('')
+    setStep((s) => Math.max(0, s - 1))
+  }
 
   const goNext = async () => {
     setError('')
 
     if (step === 0) {
-      if (!firmware) { setError('Select a firmware type to continue.'); return }
+      if (!selectedNode) {
+        setError('Select a discovered device to continue.')
+        return
+      }
+      if (!form.display_name.trim()) {
+        setForm((f) => ({ ...f, display_name: selectedNode.device_id }))
+      }
       setStep(1)
+      return
+    }
 
-    } else if (step === 1) {
-      if (!deviceId.trim())            { setError('Device ID is required.'); return }
-      if (!/^[a-z0-9_-]+$/.test(deviceId.trim())) { setError('Device ID can only contain lowercase letters, numbers, hyphens and underscores.'); return }
-      if (!name.trim())                { setError('Display name is required.'); return }
-      setStep(2)
-
-    } else if (step === 2) {
-      // Register the device with the engine before moving to wait step
-      setRegistering(true)
+    if (step === 1) {
+      if (!selectedNode) {
+        setError('Selected node is no longer available. Refresh and try again.')
+        return
+      }
+      setSaving(true)
       try {
-        await createDevice({
-          id:       deviceId.trim(),
-          name:     name.trim(),
-          type:     deviceType,
-          area_id:  areaId || undefined,
-          metadata: { firmware_type: firmware },
+        await claimDevice({
+          device_id: selectedNode.device_id,
+          display_name: form.display_name.trim() || selectedNode.device_id,
+          area_id: form.area_id || undefined,
+          device_type: form.device_type,
         })
-        setStep(3)
+        setDoneID(selectedNode.device_id)
+        setStep(2)
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Registration failed'
-        if (msg.includes('409') || msg.toLowerCase().includes('already')) {
-          setError(`A device with ID "${deviceId}" already exists. Use a different ID or delete the existing device.`)
-        } else {
-          setError(msg)
-        }
+        setError(e instanceof Error ? e.message : 'Failed to claim device')
       } finally {
-        setRegistering(false)
+        setSaving(false)
       }
+      return
+    }
 
-    } else if (step === 3) {
-      if (wsStatus === 'waiting') {
-        setError('Device has not connected yet. You can skip, but the device will need to connect before it can be controlled.')
-        // allow continuing anyway
-        setStep(4)
-      } else {
-        setStep(4)
-      }
-
-    } else if (step === 4) {
-      onDone(deviceId.trim())
+    if (step === 2) {
+      onDone(doneID)
     }
   }
 
-  const goPrev = () => {
-    setError('')
-    if (step === 3) {
-      // Going back from wait step — close WS, go to setup instructions
-      wsRef.current?.close()
-      if (timerRef.current) clearTimeout(timerRef.current)
-      setStep(2)
-    } else {
-      setStep((s) => Math.max(0, s - 1))
-    }
-  }
-
-  const nextLabel = () => {
-    if (step === 4)                               return 'Done'
-    if (step === 3 && wsStatus === 'connected')   return 'Continue →'
-    if (step === 3)                               return 'Skip →'
-    if (step === 2)                               return registering ? 'Registering…' : 'Register & Wait →'
-    return 'Next →'
-  }
-
-  // Tasmota Backlog command
-  const tasmotaCmd =
-    `Backlog MqttHost ${hubIp}; MqttPort 1883; MqttClient ${deviceId || 'device-id'}; ` +
-    `Topic propertycore/devices/${deviceId || 'device-id'}\n` +
-    `Rule1 ON Power1#State DO Publish propertycore/devices/${deviceId || 'device-id'}/state ` +
-    `{"type":"${deviceType}","ch1":%value%} ENDON\n` +
-    `Rule1 1`
-
-  // ESPHome YAML snippet
-  const esphomeYaml =
-    `mqtt:\n` +
-    `  broker: ${hubIp}\n` +
-    `  port: 1883\n` +
-    `  client_id: ${deviceId || 'device-id'}\n` +
-    `  topic_prefix: propertycore/devices/${deviceId || 'device-id'}\n` +
-    `  birth_message:\n` +
-    `    topic: propertycore/devices/${deviceId || 'device-id'}/state\n` +
-    `    payload: '{"type":"${deviceType}","online":true}'\n` +
-    `  will_message:\n` +
-    `    topic: propertycore/devices/${deviceId || 'device-id'}/state\n` +
-    `    payload: '{"type":"${deviceType}","online":false}'`
-
-  const downloadYaml = () => {
-    const blob = new Blob([esphomeYaml], { type: 'text/yaml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${deviceId || 'device'}.yaml`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const copyText = (text: string) => navigator.clipboard.writeText(text).catch(() => {})
+  const nextLabel = step === 0 ? 'Next ->' : step === 1 ? (saving ? 'Claiming...' : 'Claim Device ->') : 'Done'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
-      {/* Panel */}
-      <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-2xl mx-4
-                      border border-zinc-200 dark:border-zinc-700 flex flex-col max-h-[90vh]">
-
-        {/* Header */}
+      <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-3xl mx-4 border border-zinc-200 dark:border-zinc-700 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Add Device</h2>
-          <button
-            onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-lg leading-none p-1 rounded transition-colors"
-          >
-            ✕
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Add Device (Discovery)</h2>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-lg leading-none p-1 rounded">
+            x
           </button>
         </div>
 
-        {/* Step indicator */}
         <div className="px-6 pt-4 pb-2 shrink-0">
           <div className="flex items-center">
             {STEPS.map((label, i) => (
               <div key={i} className="flex items-center">
                 <div className={`flex items-center gap-2 ${i === step ? '' : 'opacity-60'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors
-                    ${i < step
-                      ? 'bg-brand text-white'
-                      : i === step
-                        ? 'bg-brand text-white'
-                        : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500'
-                    }`}
-                  >
-                    {i < step ? '✓' : i + 1}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i <= step ? 'bg-brand text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500'}`}>
+                    {i < step ? 'ok' : i + 1}
                   </div>
                   <span className={`text-xs whitespace-nowrap hidden sm:block ${i === step ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-zinc-400'}`}>
                     {label}
@@ -244,545 +231,176 @@ export default function AddDeviceWizard({ onClose, onDone }: Props) {
           </div>
         </div>
 
-        {/* Step content */}
         <div className="px-6 py-5 overflow-y-auto grow min-h-0">
           {step === 0 && (
-            <StepFirmware firmware={firmware} onSelect={setFirmware} />
-          )}
-          {step === 1 && (
-            <StepIdentity
-              deviceId={deviceId} setDeviceId={setDeviceId}
-              name={name} setName={setName}
-              deviceType={deviceType} setDeviceType={setDeviceType}
-              areaId={areaId} setAreaId={setAreaId}
-              areas={areas}
-            />
-          )}
-          {step === 2 && firmware && (
-            <StepSetup
-              firmware={firmware}
-              deviceId={deviceId}
-              deviceType={deviceType}
-              hubIp={hubIp}
-              tasmotaCmd={tasmotaCmd}
-              esphomeYaml={esphomeYaml}
-              onDownloadYaml={downloadYaml}
-              onCopy={copyText}
-            />
-          )}
-          {step === 3 && (
-            <StepWaiting
-              deviceId={deviceId}
-              status={wsStatus}
-              firstState={firstState}
-              onRetry={() => { setWsStatus('waiting'); setStep(3) }}
-            />
-          )}
-          {step === 4 && (
-            <StepDone
-              deviceId={deviceId}
-              name={name}
-              deviceType={deviceType}
-              firmware={firmware!}
-              areas={areas}
-              areaId={areaId}
-              connected={wsStatus === 'connected'}
-            />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Select an unclaimed discovered device. Firmware setup now lives in System / Integrations.
+                </p>
+                <button onClick={load} className="btn-ghost text-xs px-3 py-1">Refresh</button>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {sourceOptions.map((src) => (
+                  <button
+                    key={src}
+                    onClick={() => setSourceFilter(src)}
+                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                      sourceFilter === src
+                        ? 'border-brand bg-brand/10 text-brand dark:text-brand-400 dark:bg-brand/15'
+                        : 'border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {src === 'all' ? 'All Sources' : sourceLabel(src)}
+                  </button>
+                ))}
+              </div>
+
+              {loading ? (
+                <p className="text-sm text-zinc-500">Loading discovery...</p>
+              ) : unclaimed.length === 0 ? (
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
+                    No unclaimed devices discovered yet.
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => navigate('/integrations')} className="btn-primary text-xs px-3 py-1.5">
+                      Open Integrations Setup
+                    </button>
+                    <button onClick={load} className="btn-ghost text-xs px-3 py-1.5">
+                      Retry Discovery
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredUnclaimed.map((node) => (
+                    <button
+                      key={node.device_id}
+                      onClick={() => setSelectedID(node.device_id)}
+                      className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                        selectedID === node.device_id
+                          ? 'border-brand bg-brand/5 dark:bg-brand/10'
+                          : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2 flex-wrap">
+                            <span>{node.device_id}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${SOURCE_META[node.source]?.chip || 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                              {sourceLabel(node.source)}
+                            </span>
+                          </p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {node.type} · {sourceLabel(node.source)} · {node.online ? 'online' : 'offline'}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-zinc-500 dark:text-zinc-400">
+                          {node.fw_version && <p>{node.fw_version}</p>}
+                          {node.ip && <p>{node.ip}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {filteredUnclaimed.length === 0 && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 px-1">No unclaimed nodes for this source filter.</p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
-          {error && (
-            <p className="mt-3 text-red-500 text-xs">{error}</p>
+          {step === 1 && selectedNode && (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Confirm claim details. Device ID comes from firmware and should remain immutable.
+              </p>
+
+              <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 bg-zinc-50 dark:bg-zinc-800/30">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-zinc-500 dark:text-zinc-400">Device ID</span>
+                  <span className="font-mono text-zinc-800 dark:text-zinc-200">{selectedNode.device_id}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">Source</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{sourceLabel(selectedNode.source)}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">Type Detected</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{selectedNode.type}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">Suggested Claim Type</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{inferDeviceType(selectedNode)}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">Firmware</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{selectedNode.fw_version || '-'}</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">IP / MAC</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{selectedNode.ip || '-'} / {selectedNode.hardware_uid || '-'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">Display Name</label>
+                <input
+                  className="input"
+                  value={form.display_name}
+                  onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                  placeholder={selectedNode.device_id}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">Device Type</label>
+                  <select
+                    className="input"
+                    value={form.device_type}
+                    onChange={(e) => setForm((f) => ({ ...f, device_type: e.target.value as DeviceType }))}
+                  >
+                    {DEVICE_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">Area (optional)</label>
+                  <select
+                    className="input"
+                    value={form.area_id}
+                    onChange={(e) => setForm((f) => ({ ...f, area_id: e.target.value }))}
+                  >
+                    <option value="">- Unassigned -</option>
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           )}
+
+          {step === 2 && (
+            <div className="py-6">
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-2">Device claimed successfully.</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <span className="font-mono">{doneID}</span> is now in the device registry and available in All Devices.
+              </p>
+            </div>
+          )}
+
+          {error && <p className="mt-3 text-red-500 text-xs">{error}</p>}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-between shrink-0">
-          <button
-            onClick={step === 0 ? onClose : goPrev}
-            className="btn-ghost text-sm px-4 py-1.5"
-          >
-            {step === 0 ? 'Cancel' : '← Back'}
+          <button onClick={step === 0 ? onClose : goBack} className="btn-ghost text-sm px-4 py-1.5">
+            {step === 0 ? 'Cancel' : '<- Back'}
           </button>
           <button
             onClick={goNext}
-            disabled={registering}
+            disabled={saving || (step === 0 && !selectedNode && !loading)}
             className="btn-primary text-sm px-4 py-1.5 disabled:opacity-50"
           >
-            {nextLabel()}
+            {nextLabel}
           </button>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ─── Step 1: Choose firmware type ─────────────────────────────────────────────
-
-function StepFirmware({
-  firmware,
-  onSelect,
-}: {
-  firmware: FirmwareType | null
-  onSelect: (f: FirmwareType) => void
-}) {
-  return (
-    <div>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-        What firmware is running on the device you want to add?
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {FIRMWARE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => onSelect(opt.value)}
-            className={`text-left px-4 py-3 rounded-lg border transition-colors
-              ${firmware === opt.value
-                ? 'border-brand bg-brand/5 dark:bg-brand/10'
-                : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-              }`}
-          >
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-base">{opt.icon}</span>
-              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{opt.label}</span>
-              {firmware === opt.value && (
-                <span className="ml-auto text-brand text-xs font-semibold">✓</span>
-              )}
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 pl-6">{opt.desc}</p>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Step 2: Device identity ──────────────────────────────────────────────────
-
-function StepIdentity({
-  deviceId, setDeviceId,
-  name, setName,
-  deviceType, setDeviceType,
-  areaId, setAreaId,
-  areas,
-}: {
-  deviceId: string; setDeviceId: (v: string) => void
-  name: string; setName: (v: string) => void
-  deviceType: DeviceType; setDeviceType: (v: DeviceType) => void
-  areaId: string; setAreaId: (v: string) => void
-  areas: Area[]
-}) {
-  // Auto-fill name when ID changes if name is still blank
-  const handleIdChange = (v: string) => {
-    setDeviceId(v)
-    if (!name) setName(v)
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Give this device a unique ID and a display name.
-      </p>
-
-      <div>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-          Device ID <span className="text-zinc-400 font-normal">(permanent — used in MQTT topics)</span>
-        </label>
-        <input
-          className="input"
-          placeholder="e.g. relay-lounge-01"
-          value={deviceId}
-          onChange={(e) => handleIdChange(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-        />
-        {deviceId && (
-          <p className="mt-1 text-xs text-zinc-400">
-            MQTT topic: <code className="font-mono">propertycore/devices/{deviceId}/state</code>
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-          Display Name
-        </label>
-        <input
-          className="input"
-          placeholder="e.g. Lounge Relay"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-            Device Type
-          </label>
-          <select
-            className="input"
-            value={deviceType}
-            onChange={(e) => setDeviceType(e.target.value as DeviceType)}
-          >
-            {DEVICE_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-            Area <span className="text-zinc-400 font-normal">(optional)</span>
-          </label>
-          <select
-            className="input"
-            value={areaId}
-            onChange={(e) => setAreaId(e.target.value)}
-          >
-            <option value="">— Unassigned —</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Step 3: Firmware-specific setup instructions ─────────────────────────────
-
-function StepSetup({
-  firmware, deviceId, deviceType, hubIp,
-  tasmotaCmd, esphomeYaml, onDownloadYaml, onCopy,
-}: {
-  firmware: FirmwareType
-  deviceId: string
-  deviceType: string
-  hubIp: string
-  tasmotaCmd: string
-  esphomeYaml: string
-  onDownloadYaml: () => void
-  onCopy: (t: string) => void
-}) {
-  const [copied, setCopied] = useState<string | null>(null)
-
-  const copy = (key: string, text: string) => {
-    onCopy(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
-  const CopyBtn = ({ id, text }: { id: string; text: string }) => (
-    <button
-      onClick={() => copy(id, text)}
-      className="text-xs px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-600
-                 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-    >
-      {copied === id ? 'Copied ✓' : 'Copy'}
-    </button>
-  )
-
-  const CodeBlock = ({ id, text }: { id: string; text: string }) => (
-    <div className="relative mt-2">
-      <pre className="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
-                      rounded-md p-3 text-zinc-700 dark:text-zinc-300 overflow-x-auto whitespace-pre-wrap">
-        {text}
-      </pre>
-      <div className="absolute top-2 right-2">
-        <CopyBtn id={id} text={text} />
-      </div>
-    </div>
-  )
-
-  const Row = ({ label, value }: { label: string; value: string }) => (
-    <tr className="border-b border-zinc-100 dark:border-zinc-800">
-      <td className="py-1.5 pr-4 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{label}</td>
-      <td className="py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-100">{value}</td>
-      <td className="py-1.5 pl-4">
-        <CopyBtn id={label} text={value} />
-      </td>
-    </tr>
-  )
-
-  if (firmware === 'propertycore') {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          PropertyCore modules boot into AP mode on first use. Follow these steps to connect the device to this hub.
-        </p>
-        <ol className="space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">1</span>
-            <span>Power on the device. It will broadcast a Wi-Fi hotspot named <strong className="font-mono">PC-RLY-XXXXXX</strong> (open network, no password).</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">2</span>
-            <span>Connect your phone or laptop to that network.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">3</span>
-            <span>Open a browser and go to <strong className="font-mono">http://192.168.4.1</strong></span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">4</span>
-            <span>Fill in the configuration form with these values:</span>
-          </li>
-        </ol>
-        <table className="w-full mt-1">
-          <tbody>
-            <Row label="Device ID"   value={deviceId} />
-            <Row label="Hub IP"      value={hubIp} />
-            <Row label="Wi-Fi SSID"  value="(your network name)" />
-            <Row label="Wi-Fi Pass"  value="(your network password)" />
-          </tbody>
-        </table>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          After submitting, the device will reboot, join Wi-Fi, and connect to this hub automatically.
-          Then click <strong>Register & Wait →</strong>.
-        </p>
-      </div>
-    )
-  }
-
-  if (firmware === 'tasmota') {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Paste this command in the Tasmota <strong>Console</strong> (Configuration → Console):
-        </p>
-        <CodeBlock id="tasmota" text={tasmotaCmd} />
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Or go to <strong>Configuration → Configure MQTT</strong> and set Host to <code className="font-mono">{hubIp}</code>, Port to <code className="font-mono">1883</code>, Client to <code className="font-mono">{deviceId}</code>, Topic to <code className="font-mono">propertycore/devices/{deviceId}</code>.
-        </p>
-      </div>
-    )
-  }
-
-  if (firmware === 'esphome') {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Add this MQTT block to your ESPHome <code className="font-mono">.yaml</code> configuration:
-        </p>
-        <CodeBlock id="esphome" text={esphomeYaml} />
-        <div className="flex gap-2">
-          <button onClick={onDownloadYaml} className="btn-ghost text-xs px-3 py-1.5">
-            ⬇ Download .yaml
-          </button>
-          <CopyBtn id="esphome-copy" text={esphomeYaml} />
-        </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Then run: <code className="font-mono">esphome run your-device.yaml</code>
-        </p>
-      </div>
-    )
-  }
-
-  if (firmware === 'shelly') {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Open the Shelly device web UI and go to <strong>Settings → MQTT</strong>. Enable MQTT and set:
-        </p>
-        <table className="w-full mt-1">
-          <tbody>
-            <Row label="Server"      value={`${hubIp}:1883`} />
-            <Row label="Client ID"   value={deviceId} />
-            <Row label="Topic prefix" value={`propertycore/devices/${deviceId}`} />
-          </tbody>
-        </table>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          For Shelly Gen2/3 devices, use the RPC API or the mobile app → Settings → MQTT.
-          The state topic will automatically publish to <code className="font-mono">propertycore/devices/{deviceId}/state</code>.
-        </p>
-      </div>
-    )
-  }
-
-  if (firmware === 'zigbee') {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Zigbee devices are onboarded via <strong>Zigbee2MQTT</strong> running on this hub.
-        </p>
-        <ol className="space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">1</span>
-            <span>Ensure Zigbee2MQTT is running. Check the System → Integrations page.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">2</span>
-            <span>Put the Zigbee device in pairing mode (typically hold the button for 5 seconds until the LED flashes).</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">3</span>
-            <span>Zigbee2MQTT will interview the device and publish its state to the bridge topic. The pc-bridge-zigbee service translates this to <code className="font-mono">propertycore/devices/{deviceId}/state</code>.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">4</span>
-            <span>Map the Zigbee IEEE address to Device ID <strong className="font-mono">{deviceId}</strong> in the bridge config.</span>
-          </li>
-        </ol>
-      </div>
-    )
-  }
-
-  if (firmware === 'tuya') {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Tuya Local devices require extracting the local key. This is a one-time setup per device.
-        </p>
-        <ol className="space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">1</span>
-            <span>Pair the device with the Tuya/Smart Life app first to provision its Wi-Fi.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">2</span>
-            <span>Run <code className="font-mono">python3 -m tinytuya wizard</code> on the hub to scan local devices and extract keys.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-xs flex items-center justify-center font-bold">3</span>
-            <span>Configure the <strong>pc-bridge-tuya</strong> service with the device IP, key, and Device ID <strong className="font-mono">{deviceId}</strong>. It will bridge to <code className="font-mono">propertycore/devices/{deviceId}/state</code>.</span>
-          </li>
-        </ol>
-      </div>
-    )
-  }
-
-  // manual / other
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Configure your device to publish its state to the following MQTT topic:
-      </p>
-      <table className="w-full">
-        <tbody>
-          <Row label="State topic"   value={`propertycore/devices/${deviceId}/state`} />
-          <Row label="Command topic" value={`propertycore/devices/${deviceId}/cmd`} />
-          <Row label="Broker"        value={`${hubIp}:1883`} />
-        </tbody>
-      </table>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">State payload format:</p>
-      <CodeBlock id="manual" text={`{"type":"${deviceType}","online":true,"ch1":false}`} />
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        The engine will accept any JSON keys in the state payload — they will be stored and forwarded to the dashboard.
-      </p>
-    </div>
-  )
-}
-
-// ─── Step 4: Waiting for first MQTT message ───────────────────────────────────
-
-function StepWaiting({
-  deviceId, status, firstState, onRetry,
-}: {
-  deviceId: string
-  status: 'waiting' | 'connected' | 'timeout'
-  firstState: Record<string, unknown> | null
-  onRetry: () => void
-}) {
-  if (status === 'connected') {
-    return (
-      <div className="text-center py-6">
-        <div className="text-4xl mb-3">✅</div>
-        <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Device connected!</p>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          <code className="font-mono">{deviceId}</code> sent its first state message.
-        </p>
-        {firstState && (
-          <div className="text-left">
-            <p className="text-xs text-zinc-400 mb-1">First state payload:</p>
-            <pre className="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
-                            rounded-md p-3 text-zinc-700 dark:text-zinc-300 overflow-x-auto">
-              {JSON.stringify(firstState, null, 2)}
-            </pre>
-          </div>
-        )}
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-4">Click <strong>Continue →</strong> to finish.</p>
-      </div>
-    )
-  }
-
-  if (status === 'timeout') {
-    return (
-      <div className="text-center py-6">
-        <div className="text-4xl mb-3">⏱️</div>
-        <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Timed out</p>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          The device did not connect within 5 minutes. Check the device is powered on and the Wi-Fi credentials are correct.
-        </p>
-        <button onClick={onRetry} className="btn-ghost text-sm px-4 py-1.5">
-          Try Again
-        </button>
-        <p className="text-xs text-zinc-400 mt-3">Or click <strong>Skip →</strong> to register without waiting.</p>
-      </div>
-    )
-  }
-
-  // waiting
-  return (
-    <div className="text-center py-6">
-      <div className="text-4xl mb-3 animate-spin inline-block">⟳</div>
-      <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Waiting for device…</p>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-        Listening for the first message from <code className="font-mono">{deviceId}</code> on the MQTT broker.
-      </p>
-      <p className="text-xs text-zinc-400">Timeout in 5 minutes. You can skip if the device is not ready yet.</p>
-    </div>
-  )
-}
-
-// ─── Step 5: Confirm ──────────────────────────────────────────────────────────
-
-function StepDone({
-  deviceId, name, deviceType, firmware, areas, areaId, connected,
-}: {
-  deviceId: string
-  name: string
-  deviceType: DeviceType
-  firmware: FirmwareType
-  areas: Area[]
-  areaId: string
-  connected: boolean
-}) {
-  const areaName = areas.find((a) => a.id === areaId)?.name ?? 'Unassigned'
-  const firmwareLabel = FIRMWARE_OPTIONS.find((f) => f.value === firmware)?.label ?? firmware
-  const typeLabel = DEVICE_TYPES.find((t) => t.value === deviceType)?.label ?? deviceType
-
-  return (
-    <div className="py-2">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-2xl">🎉</span>
-        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Device registered{connected ? ' and connected' : ''}.
-        </p>
-      </div>
-
-      {/* Device summary card */}
-      <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{name}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium
-            ${connected
-              ? 'bg-brand/10 text-brand dark:bg-brand/15 dark:text-brand-400'
-              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
-            }`}
-          >
-            {connected ? '● Online' : '○ Offline'}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-          <span>ID</span>            <code className="font-mono text-zinc-700 dark:text-zinc-300">{deviceId}</code>
-          <span>Type</span>          <span className="text-zinc-700 dark:text-zinc-300">{typeLabel}</span>
-          <span>Firmware</span>      <span className="text-zinc-700 dark:text-zinc-300">{firmwareLabel}</span>
-          <span>Area</span>          <span className="text-zinc-700 dark:text-zinc-300">{areaName}</span>
-        </div>
-      </div>
-
-      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-4">
-        The device will appear in the Devices list. Click <strong>Done</strong> to close this wizard, or use the <strong>Configure</strong> button in the list to set up channel labels and load types.
-      </p>
     </div>
   )
 }

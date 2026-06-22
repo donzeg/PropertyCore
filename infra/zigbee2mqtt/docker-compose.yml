@@ -1,0 +1,14 @@
+services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: propertycore-zigbee2mqtt
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./data:/app/data
+      - /run/udev:/run/udev:ro
+      - /etc/localtime:/etc/localtime:ro
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      - TZ=Africa/Lagos

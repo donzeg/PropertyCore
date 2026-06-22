@@ -722,6 +722,12 @@ Build these first — they underpin every page:
 
 ## Post-Phase-3 Incremental Fixes & Enhancements
 
+### ESPHome Builder Embedding (June 2026)
+- Added a dedicated dashboard page for ESPHome Builder under System.
+- Added reverse-proxy target `/esphome/` in nginx (upstream `127.0.0.1:6052`).
+- Updated Add Device Wizard (ESPHome path) to builder-first flow with manual YAML fallback.
+- Added local container runtime definition at `infra/esphome/docker-compose.yml` for ThinkPad dev and operator use.
+
 ### Device Online/Offline Tracking (April 23 2026)
 - **Bug fixed:** Engine `MarkSeen()` was unconditionally setting `Online=true`, overriding the firmware LWT (`{"online":false}`). Devices never went offline after disconnect.
 - **Fix — engine `device.go`:** `MarkSeen()` now returns `(isNew bool, cameOnline bool)`. Checks `wasOffline` before setting `Online=true`.
