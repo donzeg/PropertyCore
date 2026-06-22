@@ -8,6 +8,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets/area_icons.dart';
 import '../widgets/device_tile.dart';
+import '../widgets/media_source_chip.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,11 +20,19 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String? _selectedAreaId;
 
+  static const _mediaSources = [
+    MediaBrand.spotify,
+    MediaBrand.youtube,
+    MediaBrand.jellyfin,
+    MediaBrand.dstv,
+  ];
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final pc = state.colors;
     final accent = AppTheme.palette(state.accent);
+    final isBrandMode = state.logoMode == LogoMode.brand;
 
     // Auto-select first area
     if (_selectedAreaId == null && state.areas.isNotEmpty) {
@@ -32,9 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final areaDevices = _selectedAreaId == null
         ? <Device>[]
-        : state.devices
-            .where((d) => d.areaId == _selectedAreaId)
-            .toList();
+        : state.devices.where((d) => d.areaId == _selectedAreaId).toList();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -58,8 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Text(
                               _greeting(),
-                              style: TextStyle(
-                                  fontSize: 13, color: pc.text2),
+                              style: TextStyle(fontSize: 13, color: pc.text2),
                             ),
                             Text(
                               state.userName.isNotEmpty
@@ -76,7 +82,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _Avatar(name: state.userName, accent: accent),
+                      _Avatar(
+                        name: state.userName,
+                        accent: accent,
+                        isBrandMode: isBrandMode,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -92,7 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       children: [
                         Icon(Icons.hub_rounded,
-                            color: accent.a400, size: 22),
+                            color: isBrandMode ? accent.a400 : pc.text2,
+                            size: 22),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -133,9 +144,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         // Refresh button
                         GestureDetector(
-                          onTap: state.loading
-                              ? null
-                              : () => state.refreshData(),
+                          onTap:
+                              state.loading ? null : () => state.refreshData(),
                           child: Icon(
                             Icons.refresh_rounded,
                             size: 18,
@@ -171,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     scene: scene,
                     pc: pc,
                     accent: accent,
+                    isBrandMode: isBrandMode,
                     onTap: () async {
                       try {
                         await state.api?.executeScene(scene.id);
@@ -182,6 +193,34 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+
+        // ── Media sources ────────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'Media Sources',
+            link: '',
+            pc: pc,
+            accent: accent,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 42,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              physics: const BouncingScrollPhysics(),
+              itemCount: _mediaSources.length,
+              itemBuilder: (context, index) {
+                return MediaSourceChip(
+                  brand: _mediaSources[index],
+                  pc: pc,
+                  logoMode: state.logoMode,
+                );
+              },
+            ),
+          ),
+        ),
 
         // ── Area chips ────────────────────────────────────────────────────
         if (state.areas.isNotEmpty) ...[
@@ -205,8 +244,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     active: active,
                     pc: pc,
                     accent: accent,
-                    onTap: () =>
-                        setState(() => _selectedAreaId = area.id),
+                    isBrandMode: isBrandMode,
+                    onTap: () => setState(() => _selectedAreaId = area.id),
                   );
                 },
               ),
@@ -227,6 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     deviceState: state.deviceStates[d.id],
                     pc: pc,
                     accent: accent,
+                    logoMode: state.logoMode,
                     onToggle: (val) {
                       try {
                         state.api?.sendDeviceCommand(d.id, {'ch1': val});
@@ -265,8 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.home_work_rounded,
-                        size: 48, color: pc.text3),
+                    Icon(Icons.home_work_rounded, size: 48, color: pc.text3),
                     const SizedBox(height: 16),
                     Text(
                       'No rooms configured yet.\nSet up rooms in the engineer dashboard.',
@@ -305,8 +344,13 @@ class _HomeScreenState extends State<HomeScreen> {
 class _Avatar extends StatelessWidget {
   final String name;
   final AccentPalette accent;
+  final bool isBrandMode;
 
-  const _Avatar({required this.name, required this.accent});
+  const _Avatar({
+    required this.name,
+    required this.accent,
+    required this.isBrandMode,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -315,8 +359,14 @@ class _Avatar extends StatelessWidget {
       height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: accent.a500.withValues(alpha: 0.15),
-        border: Border.all(color: accent.a500.withValues(alpha: 0.3)),
+        color: isBrandMode
+            ? accent.a500.withValues(alpha: 0.15)
+            : Colors.white.withValues(alpha: 0.08),
+        border: Border.all(
+          color: isBrandMode
+              ? accent.a500.withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.18),
+        ),
       ),
       child: Center(
         child: Text(
@@ -324,7 +374,7 @@ class _Avatar extends StatelessWidget {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: accent.a300,
+            color: isBrandMode ? accent.a300 : Colors.white,
           ),
         ),
       ),
@@ -346,6 +396,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasLink = link.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 7),
       child: Row(
@@ -361,7 +412,8 @@ class _SectionHeader extends StatelessWidget {
               ),
             ),
           ),
-          Text(link, style: TextStyle(fontSize: 12, color: accent.a400)),
+          if (hasLink)
+            Text(link, style: TextStyle(fontSize: 12, color: accent.a400)),
         ],
       ),
     );
@@ -372,12 +424,14 @@ class _ScenePill extends StatelessWidget {
   final Scene scene;
   final PCColors pc;
   final AccentPalette accent;
+  final bool isBrandMode;
   final VoidCallback onTap;
 
   const _ScenePill({
     required this.scene,
     required this.pc,
     required this.accent,
+    required this.isBrandMode,
     required this.onTap,
   });
 
@@ -387,8 +441,7 @@ class _ScenePill extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(right: 8),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           color: pc.surface,
           borderRadius: BorderRadius.circular(22),
@@ -398,7 +451,7 @@ class _ScenePill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.auto_awesome_rounded,
-                size: 14, color: accent.a400),
+                size: 14, color: isBrandMode ? accent.a400 : pc.text2),
             const SizedBox(width: 6),
             Text(
               scene.name,
@@ -420,6 +473,7 @@ class _AreaChip extends StatelessWidget {
   final bool active;
   final PCColors pc;
   final AccentPalette accent;
+  final bool isBrandMode;
   final VoidCallback onTap;
 
   const _AreaChip({
@@ -427,6 +481,7 @@ class _AreaChip extends StatelessWidget {
     required this.active,
     required this.pc,
     required this.accent,
+    required this.isBrandMode,
     required this.onTap,
   });
 
@@ -455,13 +510,16 @@ class _AreaChip extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: active
-                    ? accent.a500.withValues(alpha: 0.2)
+                    ? (isBrandMode
+                        ? accent.a500.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.08))
                     : pc.surfaceB,
               ),
               child: Icon(
                 areaIcon(area.type),
                 size: 20,
-                color: active ? accent.a400 : pc.text3,
+                color:
+                    active ? (isBrandMode ? accent.a400 : pc.text) : pc.text3,
               ),
             ),
             const SizedBox(height: 6),

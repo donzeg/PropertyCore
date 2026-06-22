@@ -46,6 +46,7 @@ class Device {
   final String type;
   final String areaId;
   final bool online;
+  final Map<String, dynamic> metadata;
 
   const Device({
     required this.id,
@@ -53,6 +54,7 @@ class Device {
     required this.type,
     required this.areaId,
     required this.online,
+    required this.metadata,
   });
 
   factory Device.fromJson(Map<String, dynamic> j) => Device(
@@ -61,7 +63,21 @@ class Device {
         type: j['type'] as String? ?? '',
         areaId: j['area_id'] as String? ?? '',
         online: j['online'] as bool? ?? false,
+        metadata: (j['metadata'] as Map?)?.cast<String, dynamic>() ?? {},
       );
+
+  Map<String, dynamic> get config {
+    final cfg = metadata['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
+  String relayChannelLabel(int channel) {
+    final key = 'ch${channel}_label';
+    final raw = config[key];
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    return 'Channel $channel';
+  }
 
   Device copyWith({bool? online}) => Device(
         id: id,
@@ -69,6 +85,7 @@ class Device {
         type: type,
         areaId: areaId,
         online: online ?? this.online,
+        metadata: metadata,
       );
 }
 
@@ -105,6 +122,32 @@ class DeviceState {
       if (entry.value is bool) result[entry.key] = entry.value as bool;
     }
     return result;
+  }
+
+  bool? relayChannel(int n) => state['ch$n'] as bool?;
+
+  bool? get acPower {
+    final raw = state['power'];
+    if (raw is bool) return raw;
+    return null;
+  }
+
+  String? get acMode {
+    final raw = state['mode'];
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim().toLowerCase();
+    return null;
+  }
+
+  String? get acFan {
+    final raw = state['fan'];
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim().toLowerCase();
+    return null;
+  }
+
+  double? get acTemp {
+    final raw = state['temp'];
+    if (raw is num) return raw.toDouble();
+    return null;
   }
 }
 

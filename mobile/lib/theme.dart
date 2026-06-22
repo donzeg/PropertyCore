@@ -1,12 +1,20 @@
 // PropertyCore Mobile — Theme system
 // 3 background modes × 5 accent colours = 15 visual combinations.
-// Default: Theme mode + Emerald accent (flagship look, matches dashboard).
+// Visual system is controlled by mode, accent, and intensity preferences.
 
 import 'package:flutter/material.dart';
 
 enum AppMode { dark, light, theme }
 
 enum AccentColor { emerald, sapphire, amber, rose, violet }
+
+enum BackgroundPack { interior, nightLuxe, minimal }
+
+enum GlassIntensity { low, medium, high }
+
+enum ColorIntensity { subtle, balanced, vivid }
+
+enum LogoMode { monochrome, brand }
 
 class AccentPalette {
   final Color a300, a400, a500, a600, onAccent;
@@ -106,34 +114,109 @@ class AppTheme {
 class PCColors {
   final AppMode mode;
   final AccentPalette accent;
+  final GlassIntensity glassIntensity;
+  final ColorIntensity colorIntensity;
 
-  const PCColors(this.mode, this.accent);
+  const PCColors(
+    this.mode,
+    this.accent, {
+    this.glassIntensity = GlassIntensity.medium,
+    this.colorIntensity = ColorIntensity.balanced,
+  });
 
   bool get isDark => mode != AppMode.light;
+
+  double get _glassAlphaFactor {
+    switch (glassIntensity) {
+      case GlassIntensity.low:
+        return 0.82;
+      case GlassIntensity.medium:
+        return 1.0;
+      case GlassIntensity.high:
+        return 1.2;
+    }
+  }
+
+  double get _colorAlphaFactor {
+    switch (colorIntensity) {
+      case ColorIntensity.subtle:
+        return 0.72;
+      case ColorIntensity.balanced:
+        return 1.0;
+      case ColorIntensity.vivid:
+        return 1.22;
+    }
+  }
 
   Color get scaffoldBg =>
       isDark ? const Color(0xFF0d0d0d) : const Color(0xFFf8f8f6);
 
+  double get bgBlur {
+    switch (glassIntensity) {
+      case GlassIntensity.low:
+        return 8;
+      case GlassIntensity.medium:
+        return 12;
+      case GlassIntensity.high:
+        return 16;
+    }
+  }
+
+  double get glassBlur {
+    switch (glassIntensity) {
+      case GlassIntensity.low:
+        return 14;
+      case GlassIntensity.medium:
+        return 26;
+      case GlassIntensity.high:
+        return 34;
+    }
+  }
+
+  double get noiseAlpha {
+    switch (glassIntensity) {
+      case GlassIntensity.low:
+        return 0.03;
+      case GlassIntensity.medium:
+        return 0.06;
+      case GlassIntensity.high:
+        return 0.08;
+    }
+  }
+
   // Glass surfaces
-  Color get surface =>
-      isDark ? const Color(0x12FFFFFF) : const Color(0xB8FFFFFF);
-  Color get surfaceB =>
-      isDark ? const Color(0x0AFFFFFF) : const Color(0x80FFFFFF);
+  Color get surface {
+    final base = isDark ? Colors.white : Colors.white;
+    final alpha = isDark ? 0.07 * _glassAlphaFactor : 0.74 * _glassAlphaFactor;
+    return base.withValues(alpha: alpha.clamp(0.03, 0.9));
+  }
+
+  Color get surfaceB {
+    final base = isDark ? Colors.white : Colors.white;
+    final alpha = isDark ? 0.04 * _glassAlphaFactor : 0.50 * _glassAlphaFactor;
+    return base.withValues(alpha: alpha.clamp(0.02, 0.85));
+  }
 
   Color get border =>
       isDark ? const Color(0x24FFFFFF) : const Color(0x1A000000);
-  Color get rim =>
-      isDark ? const Color(0x33FFFFFF) : const Color(0xE5FFFFFF);
+  Color get rim => isDark ? const Color(0x33FFFFFF) : const Color(0xE5FFFFFF);
+
+  Color get chipInactive =>
+      isDark ? const Color(0x29000000) : const Color(0x14000000);
 
   Color get text => isDark ? Colors.white : const Color(0xFF111111);
-  Color get text2 =>
-      isDark ? const Color(0x73FFFFFF) : const Color(0x73000000);
-  Color get text3 =>
-      isDark ? const Color(0x47FFFFFF) : const Color(0x4D000000);
+  Color get text2 => isDark ? const Color(0x73FFFFFF) : const Color(0x73000000);
+  Color get text3 => isDark ? const Color(0x47FFFFFF) : const Color(0x4D000000);
 
-  Color get glassActiveBg => accent.a500.withValues(alpha: isDark ? 0.15 : 0.1);
-  Color get glassActiveBorder =>
-      accent.a500.withValues(alpha: isDark ? 0.30 : 0.2);
+  Color get glassActiveBg {
+    final alpha = (isDark ? 0.15 : 0.1) * _colorAlphaFactor;
+    return accent.a500.withValues(alpha: alpha.clamp(0.06, 0.28));
+  }
+
+  Color get glassActiveBorder {
+    final alpha = (isDark ? 0.30 : 0.2) * _colorAlphaFactor;
+    return accent.a500.withValues(alpha: alpha.clamp(0.14, 0.42));
+  }
 
   Color get error => const Color(0xFFf43f5e);
   Color get success => const Color(0xFF10b981);

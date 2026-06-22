@@ -22,5 +22,5 @@
     "*.bbappend": "bitbake",
     "*.bbclass": "bitbake"
   },
-  "cmake.sourceDirectory": "/home/syeed/projects/propertycore-os/firmware/pc-rly-wifi"
+  "cmake.sourceDirectory": "C:/WEB_dev/PropertyCore/firmware/pc-rly-wifi"
 }

@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PropertyCore Mobile Mockup V2 - Premium Glass</title>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+:root {
+  --accent-500: #4f46e5;
+  --accent-400: #818cf8;
+  --accent-300: #a5b4fc;
+
+  --bg: #090b10;
+  --text: #eef1ff;
+  --text-muted: rgba(238, 241, 255, 0.62);
+  --text-dim: rgba(238, 241, 255, 0.36);
+
+  --glass-bg: rgba(17, 22, 36, 0.30);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-rim: rgba(255, 255, 255, 0.22);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+
+  --chip-bg: rgba(0, 0, 0, 0.16);
+  --active-bg: color-mix(in srgb, var(--accent-500) 24%, transparent);
+  --active-border: color-mix(in srgb, var(--accent-400) 46%, transparent);
+
+  --glass-blur: 26px;
+  --bg-blur: 12px;
+  --noise: 0.06;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "SF Pro Display", "Segoe UI", Inter, system-ui, sans-serif;
+  min-height: 100vh;
+  background: radial-gradient(1200px 600px at 50% -10%, #1f2944 0%, transparent 64%), var(--bg);
+  color: var(--text);
+  padding: 28px 22px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.header {
+  text-align: center;
+}
+
+.header h1 {
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.header p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.header p strong {
+  color: var(--accent-400);
+}
+
+.controls {
+  width: min(1400px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(210px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(10, 12, 18, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px);
+}
+
+.control {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button,
+select {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 8px 11px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button.active {
+  color: #05070c;
+  background: linear-gradient(130deg, var(--accent-300), var(--accent-500));
+  border-color: transparent;
+}
+
+button.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.swatch-violet { background: radial-gradient(circle at 35% 35%, #a78bfa, #5b21b6); }
+.swatch-cyan   { background: radial-gradient(circle at 35% 35%, #67e8f9, #0f766e); }
+.swatch-amber  { background: radial-gradient(circle at 35% 35%, #fcd34d, #b45309); }
+.swatch-rose   { background: radial-gradient(circle at 35% 35%, #fda4af, #be123c); }
+.swatch-slate  { background: radial-gradient(circle at 35% 35%, #94a3b8, #334155); }
+
+.stage {
+  width: min(1400px, 100%);
+  display: flex;
+  gap: 26px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.phone-tag {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.phone {
+  width: 325px;
+  border-radius: 44px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+  background: #080a10;
+  box-shadow: 0 30px 65px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  position: relative;
+}
+
+.phone::before {
+  content: "";
+  position: absolute;
+  z-index: 80;
+  width: 92px;
+  height: 28px;
+  border-radius: 14px;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #020308;
+}
+
+.screen {
+  position: relative;
+  height: 680px;
+  overflow: hidden;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.08) contrast(1.02) brightness(0.84) blur(var(--bg-blur));
+  transform: scale(1.05);
+}
+
+.bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(900px 400px at 20% -10%, rgba(190, 200, 255, 0.18), transparent 62%),
+    radial-gradient(700px 300px at 95% 115%, rgba(130, 160, 255, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(7, 9, 14, 0.22) 0%, rgba(7, 9, 14, 0.38) 38%, rgba(7, 9, 14, 0.56) 100%);
+}
+
+.bg.home {
+  background-image:
+    linear-gradient(125deg, rgba(62, 72, 88, 0.46), rgba(22, 35, 56, 0.42)),
+    url("https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=70");
+}
+
+.bg.climate {
+  background-image:
+    linear-gradient(125deg, rgba(32, 54, 68, 0.48), rgba(20, 37, 50, 0.46)),
+    url("https://images.unsplash.com/photo-1523413363574-c30aa5c2d10b?auto=format&fit=crop&w=1200&q=70");
+}
+
+.bg.media {
+  background-image:
+    linear-gradient(125deg, rgba(55, 35, 56, 0.44), rgba(24, 28, 46, 0.50)),
+    url("https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=70");
+}
+
+.overlay-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 0 0, rgba(255, 255, 255, var(--noise)) 0, rgba(255, 255, 255, 0) 2px);
+  mix-blend-mode: soft-light;
+}
+
+.content {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-icons { display: flex; gap: 6px; font-size: 14px; }
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px 92px;
+}
+
+.scroll::-webkit-scrollbar { display: none; }
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 8px 24px var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(155%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(155%);
+}
+
+.hero {
+  border-radius: 22px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.eyebrow { font-size: 11px; color: var(--text-muted); }
+
+.title {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -0.4px;
+}
+
+.sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 11px;
+  font-weight: 650;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--chip-bg);
+  color: var(--text-muted);
+}
+
+.chip.active {
+  color: #eef0ff;
+  background: var(--active-bg);
+  border-color: var(--active-border);
+}
+
+.grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.card {
+  border-radius: 17px;
+  padding: 12px;
+  min-height: 115px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.toggle {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  position: relative;
+}
+
+.toggle::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+}
+
+.card.on .toggle { background: var(--accent-500); }
+.card.on .toggle::after { left: 17px; }
+.card.on .ico {
+  background: color-mix(in srgb, var(--accent-500) 28%, transparent);
+  color: var(--accent-300);
+}
+
+.card .name { font-size: 13px; font-weight: 680; }
+.card .state { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+.panel {
+  border-radius: 18px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.music-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.album {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.34);
+}
+
+.album.a1 { background-image: url("https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?auto=format&fit=crop&w=300&q=70"); }
+.album.a2 { background-image: url("https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=300&q=70"); }
+
+.meta .track { font-size: 13px; font-weight: 700; }
+.meta .artist { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.pill-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.sources {
+  margin-top: 9px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.source {
+  border-radius: 13px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.brand-logo {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-block;
+  opacity: 0.95;
+}
+
+.source.spotify { border-color: rgba(29, 185, 84, 0.46); color: #bbf7d0; }
+.source.apple   { border-color: rgba(251, 113, 133, 0.42); color: #fecdd3; }
+.source.tv      { border-color: rgba(96, 165, 250, 0.42); color: #bfdbfe; }
+.source.radio   { border-color: rgba(250, 204, 21, 0.42); color: #fef3c7; }
+
+.bottom-nav {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  border-radius: 24px;
+  padding: 10px 8px;
+  display: flex;
+  justify-content: space-around;
+  z-index: 30;
+}
+
+.tab {
+  width: 56px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  gap: 2px;
+}
+
+.tab i { font-size: 19px; }
+.tab span { font-size: 9px; font-weight: 650; }
+.tab.active { color: var(--accent-300); }
+
+.badge {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: rgba(6, 8, 13, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+}
+
+.badge strong { color: var(--accent-400); }
+
+@media (max-width: 1040px) {
+  .controls { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 650px) {
+  body { padding: 18px 12px 36px; }
+  .controls { grid-template-columns: 1fr; }
+  .phone { width: 300px; }
+}
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>PropertyCore Mobile Mockup V2</h1>
+    <p>Premium glass system with contextual imagery and reduced green dominance. <strong id="themeLabel">Violet Luxe</strong></p>
+  </div>
+
+  <div class="controls">
+    <div class="control">
+      <div class="label">Background Mode</div>
+      <div class="row" id="modeRow">
+        <button class="mode-btn" data-mode="dark">Dark</button>
+        <button class="mode-btn" data-mode="light">Light</button>
+        <button class="mode-btn active" data-mode="cinema">Cinema</button>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="label">Background Pack</div>
+      <div class="row" id="packRow">
+        <button class="pack-btn active" data-pack="interior">Interior</button>
+        <button class="pack-btn" data-pack="night">Night Luxe</button>
+        <button class="pack-btn" data-pack="minimal">Minimal</button>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="label">Accent</div>
+      <div class="row" id="accentRow">
+        <button class="swatch swatch-violet active" data-accent="violet" title="Violet"></button>
+        <button class="swatch swatch-cyan" data-accent="cyan" title="Cyan"></button>
+        <button class="swatch swatch-amber" data-accent="amber" title="Amber"></button>
+        <button class="swatch swatch-rose" data-accent="rose" title="Rose"></button>
+        <button class="swatch swatch-slate" data-accent="slate" title="Slate"></button>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="label">Glass Intensity</div>
+      <div class="row" id="glassRow">
+        <button class="glass-btn" data-glass="low">Low</button>
+        <button class="glass-btn active" data-glass="med">Medium</button>
+        <button class="glass-btn" data-glass="high">High</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="bg home"></div>
+          <div class="overlay-noise"></div>
+          <div class="content">
+            <div class="status">
+              <span>9:41</span>
+              <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+            </div>
+            <div class="scroll">
+              <div class="hero glass">
+                <div class="eyebrow">Good evening</div>
+                <div class="title">Syeed Home</div>
+                <div class="sub">Lagos · 34C · 2 rooms active</div>
+                <div class="chips">
+                  <div class="chip active">Movie Time</div>
+                  <div class="chip">All Off</div>
+                  <div class="chip">Away</div>
+                </div>
+              </div>
+
+              <div class="grid">
+                <div class="card glass on">
+                  <div class="card-head"><div class="ico"><i class="ph-fill ph-lightbulb"></i></div><div class="toggle"></div></div>
+                  <div class="name">Living Lights</div>
+                  <div class="state">On · 70%</div>
+                </div>
+                <div class="card glass">
+                  <div class="card-head"><div class="ico"><i class="ph-fill ph-wind"></i></div><div class="toggle"></div></div>
+                  <div class="name">Climate</div>
+                  <div class="state">Cooling · 22C</div>
+                </div>
+                <div class="card glass">
+                  <div class="card-head"><div class="ico"><i class="ph-fill ph-security-camera"></i></div><div class="toggle"></div></div>
+                  <div class="name">Cameras</div>
+                  <div class="state">3 online</div>
+                </div>
+                <div class="card glass on">
+                  <div class="card-head"><div class="ico"><i class="ph-fill ph-lock-key"></i></div><div class="toggle"></div></div>
+                  <div class="name">Security</div>
+                  <div class="state">Armed</div>
+                </div>
+              </div>
+
+              <div class="panel glass">
+                <div class="panel-title">Now Playing</div>
+                <div class="music-row">
+                  <div class="album a1"></div>
+                  <div class="meta">
+                    <div class="track">Levitating</div>
+                    <div class="artist">Dua Lipa · Living Room</div>
+                  </div>
+                  <div class="pill-icon"><i class="ph-fill ph-play"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bottom-nav glass">
+              <div class="tab active"><i class="ph-fill ph-house"></i><span>Home</span></div>
+              <div class="tab"><i class="ph ph-door"></i><span>Rooms</span></div>
+              <div class="tab"><i class="ph ph-snowflake"></i><span>Climate</span></div>
+              <div class="tab"><i class="ph ph-dots-three-circle"></i><span>More</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-tag">Home Layer</div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="bg climate"></div>
+          <div class="overlay-noise"></div>
+          <div class="content">
+            <div class="status">
+              <span>9:41</span>
+              <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+            </div>
+            <div class="scroll">
+              <div class="hero glass">
+                <div class="eyebrow">Climate</div>
+                <div class="title">Property Overview</div>
+                <div class="sub">4 AC units · 2 cooling · 1 fan</div>
+              </div>
+
+              <div class="panel glass">
+                <div class="panel-title">Master Bedroom</div>
+                <div class="chips">
+                  <div class="chip active">Cool</div>
+                  <div class="chip">Fan</div>
+                  <div class="chip">Dry</div>
+                  <div class="chip">Auto</div>
+                </div>
+                <div class="grid" style="margin-top: 8px;">
+                  <div class="card glass on" style="min-height: 92px;">
+                    <div class="name">Target Temp</div>
+                    <div class="state" style="font-size: 18px; color: var(--text); margin-top: 6px;">22C</div>
+                  </div>
+                  <div class="card glass" style="min-height: 92px;">
+                    <div class="name">Fan Speed</div>
+                    <div class="state" style="font-size: 18px; color: var(--text); margin-top: 6px;">Medium</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel glass">
+                <div class="panel-title">Lighting + Curtains</div>
+                <div class="sources">
+                  <div class="source"><i class="ph-fill ph-lightbulb"></i> Ceiling 65%</div>
+                  <div class="source"><i class="ph-fill ph-lamp"></i> Bedside 40%</div>
+                  <div class="source"><i class="ph-fill ph-rows-plus-bottom"></i> Curtains 70%</div>
+                  <div class="source"><i class="ph-fill ph-sun"></i> Day Preset</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bottom-nav glass">
+              <div class="tab"><i class="ph ph-house"></i><span>Home</span></div>
+              <div class="tab"><i class="ph ph-door"></i><span>Rooms</span></div>
+              <div class="tab active"><i class="ph-fill ph-snowflake"></i><span>Climate</span></div>
+              <div class="tab"><i class="ph ph-dots-three-circle"></i><span>More</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-tag">Climate Layer</div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="bg media"></div>
+          <div class="overlay-noise"></div>
+          <div class="content">
+            <div class="status">
+              <span>9:41</span>
+              <div class="status-icons"><i class="ph-fill ph-wifi-high"></i><i class="ph-fill ph-battery-full"></i></div>
+            </div>
+            <div class="scroll">
+              <div class="hero glass">
+                <div class="eyebrow">Entertainment</div>
+                <div class="title">Now Playing</div>
+                <div class="sub">Multi-room audio and media controls</div>
+              </div>
+
+              <div class="panel glass">
+                <div class="music-row">
+                  <div class="album a2"></div>
+                  <div class="meta">
+                    <div class="track">The Brain Dance</div>
+                    <div class="artist">Animals As Leaders · Great Room</div>
+                  </div>
+                  <div class="pill-icon"><i class="ph-fill ph-pause"></i></div>
+                </div>
+                <div class="chips" style="margin-top: 10px;">
+                  <div class="chip active">52% Volume</div>
+                  <div class="chip">Primary Bedroom</div>
+                </div>
+              </div>
+
+              <div class="panel glass">
+                <div class="panel-title">Sources</div>
+                <div class="sources">
+                  <div class="source spotify"><img class="brand-logo" src="https://cdn.simpleicons.org/spotify/FFFFFF" alt="Spotify logo"> Spotify</div>
+                  <div class="source apple"><img class="brand-logo" src="https://cdn.simpleicons.org/applemusic/FFFFFF" alt="Apple Music logo"> Apple Music</div>
+                  <div class="source tv"><img class="brand-logo" src="https://cdn.simpleicons.org/appletv/FFFFFF" alt="Apple TV logo"> Apple TV</div>
+                  <div class="source radio"><img class="brand-logo" src="https://cdn.simpleicons.org/iheartradio/FFFFFF" alt="Radio logo"> Radio</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bottom-nav glass">
+              <div class="tab"><i class="ph ph-house"></i><span>Home</span></div>
+              <div class="tab"><i class="ph ph-speaker-high"></i><span>Media</span></div>
+              <div class="tab"><i class="ph ph-security-camera"></i><span>Cams</span></div>
+              <div class="tab active"><i class="ph-fill ph-dots-three-circle"></i><span>More</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-tag">Media Layer</div>
+    </div>
+  </div>
+
+  <div class="badge"><strong>V2</strong> premium glass concept</div>
+
+<script>
+const state = {
+  mode: "cinema",
+  pack: "interior",
+  accent: "violet",
+  glass: "med",
+};
+
+const accents = {
+  violet: { a500: "#4f46e5", a400: "#818cf8", a300: "#a5b4fc", label: "Violet Luxe" },
+  cyan:   { a500: "#0891b2", a400: "#22d3ee", a300: "#67e8f9", label: "Cyan Air" },
+  amber:  { a500: "#d97706", a400: "#f59e0b", a300: "#fcd34d", label: "Amber Glow" },
+  rose:   { a500: "#be123c", a400: "#fb7185", a300: "#fda4af", label: "Rose Studio" },
+  slate:  { a500: "#334155", a400: "#64748b", a300: "#94a3b8", label: "Slate Premium" },
+};
+
+function setCssVar(name, value) {
+  document.documentElement.style.setProperty(name, value);
+}
+
+function applyAccent() {
+  const a = accents[state.accent];
+  setCssVar("--accent-500", a.a500);
+  setCssVar("--accent-400", a.a400);
+  setCssVar("--accent-300", a.a300);
+  document.getElementById("themeLabel").textContent = a.label;
+}
+
+function applyMode() {
+  if (state.mode === "dark") {
+    setCssVar("--bg", "#090b10");
+    setCssVar("--text", "#eef1ff");
+    setCssVar("--text-muted", "rgba(238, 241, 255, 0.62)");
+    setCssVar("--text-dim", "rgba(238, 241, 255, 0.36)");
+  } else if (state.mode === "light") {
+    setCssVar("--bg", "#eceff4");
+    setCssVar("--text", "#0f172a");
+    setCssVar("--text-muted", "rgba(15, 23, 42, 0.62)");
+    setCssVar("--text-dim", "rgba(15, 23, 42, 0.36)");
+    setCssVar("--glass-bg", "rgba(255, 255, 255, 0.34)");
+    setCssVar("--glass-border", "rgba(15, 23, 42, 0.12)");
+    setCssVar("--glass-rim", "rgba(255, 255, 255, 0.65)");
+  } else {
+    setCssVar("--bg", "#090b10");
+    setCssVar("--text", "#eef1ff");
+    setCssVar("--text-muted", "rgba(238, 241, 255, 0.62)");
+    setCssVar("--text-dim", "rgba(238, 241, 255, 0.36)");
+    setCssVar("--glass-bg", "rgba(17, 22, 36, 0.30)");
+    setCssVar("--glass-border", "rgba(255, 255, 255, 0.16)");
+    setCssVar("--glass-rim", "rgba(255, 255, 255, 0.22)");
+  }
+}
+
+function applyGlass() {
+  if (state.glass === "low") {
+    setCssVar("--glass-blur", "14px");
+    setCssVar("--bg-blur", "8px");
+    setCssVar("--noise", "0.03");
+  } else if (state.glass === "high") {
+    setCssVar("--glass-blur", "34px");
+    setCssVar("--bg-blur", "16px");
+    setCssVar("--noise", "0.08");
+  } else {
+    setCssVar("--glass-blur", "26px");
+    setCssVar("--bg-blur", "12px");
+    setCssVar("--noise", "0.06");
+  }
+}
+
+function applyPack() {
+  const maps = {
+    interior: {
+      home: "url('https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=70')",
+      climate: "url('https://images.unsplash.com/photo-1523413363574-c30aa5c2d10b?auto=format&fit=crop&w=1200&q=70')",
+      media: "url('https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=70')"
+    },
+    night: {
+      home: "url('https://images.unsplash.com/photo-1493666438817-866a91353ca9?auto=format&fit=crop&w=1200&q=70')",
+      climate: "url('https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=70')",
+      media: "url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1200&q=70')"
+    },
+    minimal: {
+      home: "radial-gradient(circle at 20% 20%, #202f45, #0b101b)",
+      climate: "radial-gradient(circle at 80% 30%, #133546, #0a1520)",
+      media: "radial-gradient(circle at 30% 70%, #2a2346, #0d1220)"
+    }
+  };
+
+  const map = maps[state.pack];
+  document.querySelector(".bg.home").style.backgroundImage =
+    "linear-gradient(125deg, rgba(62,72,88,0.46), rgba(22,35,56,0.42)), " + map.home;
+  document.querySelector(".bg.climate").style.backgroundImage =
+    "linear-gradient(125deg, rgba(32,54,68,0.48), rgba(20,37,50,0.46)), " + map.climate;
+  document.querySelector(".bg.media").style.backgroundImage =
+    "linear-gradient(125deg, rgba(55,35,56,0.44), rgba(24,28,46,0.50)), " + map.media;
+}
+
+function activateButtons(groupSelector, key, value) {
+  document.querySelectorAll(groupSelector).forEach((el) => {
+    el.classList.toggle("active", el.dataset[key] === value);
+  });
+}
+
+function bind() {
+  document.querySelectorAll(".mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.mode = btn.dataset.mode;
+      activateButtons(".mode-btn", "mode", state.mode);
+      applyMode();
+    });
+  });
+
+  document.querySelectorAll(".pack-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.pack = btn.dataset.pack;
+      activateButtons(".pack-btn", "pack", state.pack);
+      applyPack();
+    });
+  });
+
+  document.querySelectorAll(".swatch").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.accent = btn.dataset.accent;
+      activateButtons(".swatch", "accent", state.accent);
+      applyAccent();
+    });
+  });
+
+  document.querySelectorAll(".glass-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.glass = btn.dataset.glass;
+      activateButtons(".glass-btn", "glass", state.glass);
+      applyGlass();
+    });
+  });
+}
+
+bind();
+applyAccent();
+applyMode();
+applyGlass();
+applyPack();
+</script>
+</body>
+</html>

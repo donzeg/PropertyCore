@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -205,6 +206,35 @@ func main() {
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return requireAdminAuth(adminSessions, withBodyLimit(h))
 	}
+	// mobileAuth accepts either an admin dashboard token or a mobile PIN token.
+	// This keeps the mobile app functional while preserving a single auth path.
+	mobileAuth := func(h http.HandlerFunc) http.HandlerFunc {
+		return withBodyLimit(func(w http.ResponseWriter, r *http.Request) {
+			token := adminTokenFromRequest(r)
+			if _, ok := adminSessions.ValidateToken(token); ok {
+				h(w, r)
+				return
+			}
+			if _, ok := sessions.ValidateToken(token); ok {
+				h(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":"unauthorized"}`)
+		})
+	}
+	// usersAuth allows unauthenticated reads for mobile login user listing,
+	// while keeping all write operations admin-protected.
+	usersAuth := func(h http.HandlerFunc) http.HandlerFunc {
+		return withBodyLimit(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				h(w, r)
+				return
+			}
+			requireAdminAuth(adminSessions, h)(w, r)
+		})
+	}
 
 	mux := http.NewServeMux()
 	// Public routes (no auth required)
@@ -217,20 +247,20 @@ func main() {
 	// Admin auth — login/logout are public (they create/destroy the session)
 	mux.HandleFunc("/api/v1/admin/login", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/admin/logout", withBodyLimit(makeAdminAuthHandler(admins, adminSessions)))
-	// Protected routes — require valid admin session token
-	mux.HandleFunc("/api/v1/devices", auth(makeDevicesHandler(registry, state, mqttClient)))
-	mux.HandleFunc("/api/v1/devices/", auth(makeDevicesHandler(registry, state, mqttClient)))
-	mux.HandleFunc("/api/v1/scenes", auth(makeScenesHandler(scenes, mqttClient, wsHub)))
-	mux.HandleFunc("/api/v1/scenes/", auth(makeScenesHandler(scenes, mqttClient, wsHub)))
+	// Protected routes — admin-only unless explicitly shared with mobileAuth.
+	mux.HandleFunc("/api/v1/devices", mobileAuth(makeDevicesHandler(registry, state, mqttClient)))
+	mux.HandleFunc("/api/v1/devices/", mobileAuth(makeDevicesHandler(registry, state, mqttClient)))
+	mux.HandleFunc("/api/v1/scenes", mobileAuth(makeScenesHandler(scenes, mqttClient, wsHub)))
+	mux.HandleFunc("/api/v1/scenes/", mobileAuth(makeScenesHandler(scenes, mqttClient, wsHub)))
 	mux.HandleFunc("/api/v1/rules", auth(makeRulesHandler(rulesEngine)))
 	mux.HandleFunc("/api/v1/rules/", auth(makeRulesHandler(rulesEngine)))
-	mux.HandleFunc("/api/v1/areas", auth(makeAreasHandler(areas)))
-	mux.HandleFunc("/api/v1/areas/", auth(makeAreasHandler(areas)))
-	mux.HandleFunc("/api/v1/floors", auth(makeFloorsHandler(floors)))
-	mux.HandleFunc("/api/v1/floors/", auth(makeFloorsHandler(floors)))
-	mux.HandleFunc("/api/v1/property", auth(makePropertyHandler(prop)))
-	mux.HandleFunc("/api/v1/users", auth(makeUsersHandler(users)))
-	mux.HandleFunc("/api/v1/users/", auth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/areas", mobileAuth(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/areas/", mobileAuth(makeAreasHandler(areas)))
+	mux.HandleFunc("/api/v1/floors", mobileAuth(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/floors/", mobileAuth(makeFloorsHandler(floors)))
+	mux.HandleFunc("/api/v1/property", mobileAuth(makePropertyHandler(prop)))
+	mux.HandleFunc("/api/v1/users", usersAuth(makeUsersHandler(users)))
+	mux.HandleFunc("/api/v1/users/", usersAuth(makeUsersHandler(users)))
 	mux.HandleFunc("/api/v1/admin/accounts", auth(makeAdminAccountsHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/admin/accounts/", auth(makeAdminAccountsHandler(admins, adminSessions)))
 	mux.HandleFunc("/api/v1/schedules", auth(makeSchedulesHandler(scheduler)))
@@ -243,7 +273,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         ":" + httpPort,
-		Handler:      mux,
+		Handler:      withCORS(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -281,4 +311,33 @@ func announceOnline(c *MQTTClient) {
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// withCORS adds permissive CORS headers for browser-based clients.
+// Use CORS_ALLOW_ORIGIN to override the default "*" origin.
+func withCORS(next http.Handler) http.Handler {
+	allowedOrigin := os.Getenv("CORS_ALLOW_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if allowedOrigin == "*" {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		} else if origin != "" && strings.EqualFold(origin, allowedOrigin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

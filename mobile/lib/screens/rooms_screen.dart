@@ -24,6 +24,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
     final state = context.watch<AppState>();
     final pc = state.colors;
     final accent = AppTheme.palette(state.accent);
+    final isBrandMode = state.logoMode == LogoMode.brand;
 
     final floors = state.floors;
     final filteredAreas = _selectedFloorId.isEmpty
@@ -69,8 +70,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
               height: 46,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 physics: const BouncingScrollPhysics(),
                 children: [
                   // "All" tab
@@ -79,8 +79,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                     active: _selectedFloorId.isEmpty,
                     pc: pc,
                     accent: accent,
-                    onTap: () =>
-                        setState(() => _selectedFloorId = ''),
+                    isBrandMode: isBrandMode,
+                    onTap: () => setState(() => _selectedFloorId = ''),
                   ),
                   ...floors.map(
                     (f) => _FloorTab(
@@ -88,8 +88,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                       active: _selectedFloorId == f.id,
                       pc: pc,
                       accent: accent,
-                      onTap: () =>
-                          setState(() => _selectedFloorId = f.id),
+                      isBrandMode: isBrandMode,
+                      onTap: () => setState(() => _selectedFloorId = f.id),
                     ),
                   ),
                 ],
@@ -115,6 +115,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                   onlineCount: onlineCount,
                   pc: pc,
                   accent: accent,
+                  isBrandMode: isBrandMode,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => RoomDetailScreen(area: area),
@@ -152,6 +153,7 @@ class _FloorTab extends StatelessWidget {
   final bool active;
   final PCColors pc;
   final AccentPalette accent;
+  final bool isBrandMode;
   final VoidCallback onTap;
 
   const _FloorTab({
@@ -159,6 +161,7 @@ class _FloorTab extends StatelessWidget {
     required this.active,
     required this.pc,
     required this.accent,
+    required this.isBrandMode,
     required this.onTap,
   });
 
@@ -180,7 +183,7 @@ class _FloorTab extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: active ? accent.a400 : pc.text3,
+            color: active ? (isBrandMode ? accent.a400 : pc.text) : pc.text3,
           ),
         ),
       ),
@@ -194,6 +197,7 @@ class _RoomRow extends StatelessWidget {
   final int onlineCount;
   final PCColors pc;
   final AccentPalette accent;
+  final bool isBrandMode;
   final VoidCallback onTap;
 
   const _RoomRow({
@@ -202,6 +206,7 @@ class _RoomRow extends StatelessWidget {
     required this.onlineCount,
     required this.pc,
     required this.accent,
+    required this.isBrandMode,
     required this.onTap,
   });
 
@@ -251,9 +256,13 @@ class _RoomRow extends StatelessWidget {
             if (onlineCount > 0)
               _Badge(
                 label: '$onlineCount on',
-                color: accent.a400,
-                bg: accent.a500.withValues(alpha: 0.12),
-                border: accent.a500.withValues(alpha: 0.25),
+                color: isBrandMode ? accent.a400 : pc.text2,
+                bg: isBrandMode
+                    ? accent.a500.withValues(alpha: 0.12)
+                    : Colors.white.withValues(alpha: 0.08),
+                border: isBrandMode
+                    ? accent.a500.withValues(alpha: 0.25)
+                    : pc.border,
               )
             else if (deviceCount > 0)
               _Badge(
@@ -263,8 +272,7 @@ class _RoomRow extends StatelessWidget {
                 border: pc.border,
               ),
             const SizedBox(width: 8),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: pc.text3),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: pc.text3),
           ],
         ),
       ),

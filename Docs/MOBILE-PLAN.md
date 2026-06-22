@@ -56,8 +56,162 @@ What exists today in `mobile/lib/`:
 3. **Speed over polish.** Response to a toggle must feel instant — optimistic update first, API call second.
 4. **Three audiences, one codebase.** Owner sees everything. Guest sees assigned area only. Hotel staff see operational views (room status, DND). Role is derived from the user's `role` field.
 5. **Works on-site (local Wi-Fi) and off-site (WireGuard relay tunnel).** The `hub_ip` setting covers both — on-site: local IP, off-site: relay tunnel domain.
-6. **Emerald + Zinc.** Accent `#10b981`. `AppMode` and `AccentColor` system already built — keep it.
+6. **Premium glass, not flat color fills.** Avoid single-tone green/blue/yellow full-screen backgrounds. Use blurred contextual imagery + layered glass surfaces for depth.
 7. **Flutter Material 3** conventions where sensible, but override aggressively for the PropertyCore aesthetic — no default blue Material chrome.
+
+---
+
+## Visual Direction Reset (Premium Glass)
+
+The app should move from a "color-fill" look to a "depth + material" look inspired by high-end control systems.
+
+### A. Background System (context-aware imagery)
+
+Use adaptive, blurred background images behind all app components.
+
+- **Home**: premium lifestyle/interior image (soft focus)
+- **Rooms / Lighting**: warm architectural interior scene
+- **Climate**: cool-toned ambient scene (subtle blue-gray)
+- **Scenes / Automation**: abstract cinematic texture
+- **Energy**: modern technical/utility texture (low contrast)
+- **Access / Cameras**: darker security-focused backdrop
+- **More / Settings**: neutral luxury texture
+
+Rules:
+
+- Apply strong blur + dark overlay to preserve readability
+- Never allow raw photo detail to compete with text
+- Background image selection can be automatic by screen context, with user override in settings
+
+### B. Glass Surface Language
+
+All cards, chips, nav bars, dialogs, and quick actions should use consistent glass styling:
+
+- Frosted panel effect (`BackdropFilter`) with subtle tint
+- Soft border highlight (`1px` translucent light border)
+- Elevated shadow stack (small + ambient)
+- Rounded corners tuned per component size (not one global radius)
+- Disabled states use desaturated glass, not plain gray blocks
+
+### C. Color Strategy (de-emphasize green)
+
+Emerald remains the brand accent, but should no longer dominate the whole UI.
+
+- **Primary base palette**: deep charcoal / slate / smoky blue
+- **Accent usage**: only for active state, key CTA, progress highlights
+- **Category colors**:
+  - Lighting: warm amber
+  - Climate: cool cyan/ice
+  - Media: album-art driven dynamic accents
+  - Security: red/rose for armed/alerts
+  - Energy: lime/amber/red based on load/SOC state
+
+### D. Media-first Components
+
+Where media exists, UI should feel alive and premium:
+
+- Album art thumbnails on now-playing cards
+- Source badges (Spotify, Apple Music, TV, Radio)
+- Color extraction from album art for subtle edge glows (never full-screen flood)
+- Rich transport controls (play/pause/next/volume) with tactile glass buttons
+
+### E. Motion + Depth
+
+- Slow parallax drift on background layers
+- Gentle card hover/tap elevation
+- Smooth blur/fade transitions when switching tabs
+- Keep motion tasteful and low-frequency (premium, not flashy)
+
+### F. Appearance Settings Changes
+
+Extend More > Appearance to include:
+
+- `Background Mode`: Auto by screen | Single global image | Off
+- `Background Pack`: Interior | Night Luxe | Minimal | Energy Tech
+- `Glass Intensity`: Low | Medium | High
+- `Color Intensity`: Subtle | Balanced | Vivid
+- Keep existing `AppMode` and `AccentColor`, but treat them as secondary controls
+
+### G. Asset Requirements
+
+- Curate a licensed image pack per context (mobile + tablet crops)
+- Provide fallback abstract textures for offline use
+- Pre-cache selected backgrounds to avoid frame drops on navigation
+
+### H. V2 Standards (Approved Baseline)
+
+The following values/behaviors are now the implementation baseline based on V2 mock review.
+
+#### H.1 Background image visibility + blur
+- Background images must be visibly recognizable, not flattened into a dark wash.
+- Apply blur to image layer itself, not only glass cards.
+- Baseline blur by intensity:
+  - Low: 8px
+  - Medium: 12px
+  - High: 16px
+- Maintain readability with a lighter overlay than v0/v1 concepts (image remains legible behind glass).
+
+#### H.2 Overlay and tint policy
+- Avoid heavy full-screen dark gradients that hide photo detail.
+- Use gentle top/bottom readability gradients and localized highlights.
+- Per-screen color tints are allowed, but must remain translucent and secondary to image content.
+
+#### H.3 Glass opacity policy
+- Glass surfaces should be translucent enough for background depth to be perceived.
+- Increase blur before increasing opacity; do not solve readability by making cards fully opaque.
+- Chips and inactive controls should use lighter dark fills than the old green-dominant style.
+
+#### H.4 Product icon treatment (media/services)
+- Use actual product brand marks for source chips and media rows (Spotify, Apple Music, Apple TV, Radio provider).
+- Default style: monochrome (white) logos on glass for premium consistency.
+- Optional mode: colored logos only in high-emphasis media contexts.
+- Generic icon fonts are fallback only when official mark is unavailable.
+
+#### H.5 Appearance controls minimum set
+- Background Mode: Dark | Light | Cinema (or equivalent naming)
+- Background Pack: Interior | Night Luxe | Minimal (+ future packs)
+- Accent selection: multi-palette, with non-green default allowed
+- Glass Intensity: Low | Medium | High
+
+#### H.6 Non-goals for premium look
+- No single-color full-screen fills as default app identity.
+- No all-green visual dominance across backgrounds, cards, and controls.
+- No flat, borderless control chips for premium surfaces.
+
+#### H.7 Implementation Tokens (Flutter Mapping)
+
+Use these token names (or close equivalents) in `theme.dart` / shared style helpers.
+
+| Token | Type | Default | Notes |
+|---|---|---|---|
+| `bgBlurLow` | double | `8.0` | Background image blur for low intensity |
+| `bgBlurMedium` | double | `12.0` | Background image blur for medium intensity |
+| `bgBlurHigh` | double | `16.0` | Background image blur for high intensity |
+| `overlayTopAlpha` | double | `0.22` | Readability gradient top darkness |
+| `overlayMidAlpha` | double | `0.38` | Readability gradient mid darkness |
+| `overlayBottomAlpha` | double | `0.56` | Readability gradient bottom darkness |
+| `glassSurfaceAlphaDark` | double | `0.30` | Glass fill opacity in dark/cinema mode |
+| `glassSurfaceAlphaLight` | double | `0.34` | Glass fill opacity in light mode |
+| `glassBorderAlpha` | double | `0.16` | Main glass border opacity |
+| `glassRimAlpha` | double | `0.22` | Inner highlight/rim opacity |
+| `glassBlurLow` | double | `14.0` | Card blur for low glass intensity |
+| `glassBlurMedium` | double | `26.0` | Card blur for medium glass intensity |
+| `glassBlurHigh` | double | `34.0` | Card blur for high glass intensity |
+| `noiseAlphaLow` | double | `0.03` | Optional texture layer alpha |
+| `noiseAlphaMedium` | double | `0.06` | Optional texture layer alpha |
+| `noiseAlphaHigh` | double | `0.08` | Optional texture layer alpha |
+| `chipInactiveAlpha` | double | `0.16` | Dark inactive chip fill alpha |
+| `brandLogoMonochromeDefault` | bool | `true` | Use monochrome white logos by default |
+| `mediaLogoColorMode` | enum | `monochrome|brand` | Brand color mode only for emphasis contexts |
+| `defaultAccent` | enum | `violet` | Non-green default accent is allowed |
+
+State keys to persist in `SharedPreferences`:
+
+- `pc-bg-mode` -> `dark|light|cinema`
+- `pc-bg-pack` -> `interior|night-luxe|minimal|...`
+- `pc-glass-intensity` -> `low|medium|high`
+- `pc-color-intensity` -> `subtle|balanced|vivid`
+- `pc-logo-mode` -> `monochrome|brand`
 
 ---
 
@@ -65,7 +219,46 @@ What exists today in `mobile/lib/`:
 
 ---
 
+### Phase 0 — Visual Foundation (In Progress)
+
+**Goal:** Establish premium visual system before feature-heavy phases continue.
+
+**Deliverables:**
+
+#### 0.1 Global shell polish
+- Replace flat blob-style backgrounds with contextual blurred image layer system
+- Apply unified glass component tokens (blur, border opacity, tint, shadow, radius)
+- Rework bottom nav and top chips to glass style
+- Ensure image layer is visibly present behind components at all times
+
+#### 0.2 Theming architecture update
+- Introduce theme tokens for surface depth and category accent mapping
+- Keep Emerald as brand accent, but reduce default global green usage
+- Add support for per-screen background presets
+
+#### 0.3 Appearance settings upgrade
+- Add Background Mode / Pack / Glass Intensity / Color Intensity controls
+- Persist in SharedPreferences
+- Add toggle for monochrome brand icon mode (default ON)
+
+#### 0.4 Performance and readability guards
+- Ensure text contrast stays AA-compliant over all background packs
+- Add fallback static texture when blur/performance budget is exceeded
+
+#### 0.5 Acceptance criteria
+- No screen appears as flat single-color fill by default
+- All major cards render as glass components over blurred contextual backgrounds
+- Home, Rooms, Climate, Scenes, More each has distinct visual mood while retaining one design language
+- Background image remains recognizable in all modes/intensities while text remains readable
+- Media source chips use actual product marks, not generic glyph substitutes
+
+Progress update (2026-06-09): Media source chips for Spotify, YouTube, Jellyfin, and DStv are now implemented in Home, Scenes, and Settings with Logo Mode rendering (brand vs monochrome).
+
+---
+
 ### Phase 1 — Device-Type-Aware Room Controls
+
+Status: 🔄 In progress (2026-06-09)
 
 **Goal:** The Room Detail screen becomes a real control surface. This is the core of the app — without it, the app is a toy.
 
@@ -78,6 +271,10 @@ What exists today in `mobile/lib/`:
 - If all channels = 1 type (all lights) → show as a single "All Off / All On" control with individual overrides
 - Online badge — gray out + show "Offline" if `device.online == false`
 - MQTT publish on toggle: `propertycore/devices/{id}/cmd` → `{"ch1": true}`
+
+Progress update (2026-06-09): Mobile Room Detail now renders a dedicated relay card for `device.type == relay` with per-channel toggles, batch All On/All Off actions, offline state treatment, and channel labels sourced from device metadata config when available.
+
+Progress update (2026-06-09): Mobile Room Detail now also renders a dedicated AC card for `device.type == ac-gateway` with power toggle, mode selector (Cool/Fan/Dry/Auto), target temperature stepper (16-30 C), and fan speed selector.
 
 #### 1.2 AC Control Card
 - Current room temperature (from AC device state or ambient sensor)
@@ -382,6 +579,10 @@ When `property.type == "hotel"` and user role is guest/staff:
 #### 10.3 Appearance
 - AppMode: Dark / Light / Theme (existing — keep)
 - AccentColor: Emerald / Sapphire / Amber / Rose / Violet (existing — keep)
+- Background Mode: Auto by screen / Single global image / Off
+- Background Pack: Interior / Night Luxe / Minimal / Energy Tech
+- Glass Intensity: Low / Medium / High
+- Color Intensity: Subtle / Balanced / Vivid
 - Language preference (English default; future: Arabic, French, Hausa for West Africa)
 
 #### 10.4 Notifications
@@ -489,7 +690,8 @@ When `property.type == "hotel"` and user role is guest/staff:
 
 | Phase | Feature Area | Core Deliverable | Status |
 |---|---|---|---|
-| 1 | Room Controls | Device-type-aware cards: relay, AC, dimmer, curtain | ⬜ Not started |
+| 0 | Visual Foundation | Premium glass shell + contextual blurred backgrounds + appearance controls | 🔄 In progress |
+| 1 | Room Controls | Device-type-aware cards: relay, AC, dimmer, curtain | 🔄 In progress |
 | 2 | Climate + Lighting | Dedicated property-wide tabs | ⬜ Not started |
 | 3 | Energy | Power flow, battery, solar, per-circuit — InfluxDB charts | ⬜ Not started |
 | 4 | Access Control | Gate, locks, visitor log, doorbell answer, people presence | ⬜ Not started |

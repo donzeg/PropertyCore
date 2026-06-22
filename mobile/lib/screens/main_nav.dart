@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../theme.dart';
-import '../widgets/blob_bg.dart';
+import '../widgets/contextual_bg.dart';
 import 'home_screen.dart';
 import 'rooms_screen.dart';
 import 'scenes_screen.dart';
@@ -63,14 +63,29 @@ class _MainNavState extends State<MainNav> {
       bottomNavigationBar: _buildNav(state),
     );
 
-    if (state.appMode == AppMode.theme) {
-      return BlobBackground(accent: state.accent, child: content);
-    }
-
-    return ColoredBox(
-      color: state.colors.scaffoldBg,
+    return ContextualBackground(
+      mode: state.appMode,
+      accent: state.accent,
+      pack: state.backgroundPack,
+      glassIntensity: state.glassIntensity,
+      colorIntensity: state.colorIntensity,
+      mood: _moodForIndex(_index),
       child: content,
     );
+  }
+
+  BackgroundMood _moodForIndex(int index) {
+    switch (index) {
+      case 0:
+        return BackgroundMood.home;
+      case 1:
+        return BackgroundMood.rooms;
+      case 2:
+        return BackgroundMood.scenes;
+      case 3:
+      default:
+        return BackgroundMood.more;
+    }
   }
 
   Widget _buildNav(AppState state) {

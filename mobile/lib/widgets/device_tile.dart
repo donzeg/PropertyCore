@@ -11,6 +11,7 @@ class DeviceTile extends StatelessWidget {
   final DeviceState? deviceState;
   final PCColors pc;
   final AccentPalette accent;
+  final LogoMode logoMode;
   final ValueChanged<bool> onToggle;
 
   const DeviceTile({
@@ -19,12 +20,14 @@ class DeviceTile extends StatelessWidget {
     this.deviceState,
     required this.pc,
     required this.accent,
+    required this.logoMode,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
     final isOn = deviceState?.primaryState ?? false;
+    final isBrandMode = logoMode == LogoMode.brand;
 
     return GestureDetector(
       onTap: () => onToggle(!isOn),
@@ -50,13 +53,17 @@ class DeviceTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     color: isOn
-                        ? accent.a500.withValues(alpha: 0.2)
+                        ? (isBrandMode
+                            ? accent.a500.withValues(alpha: 0.2)
+                            : Colors.white.withValues(alpha: 0.08))
                         : pc.surfaceB,
                   ),
                   child: Icon(
                     deviceIcon(device.type),
                     size: 22,
-                    color: isOn ? accent.a400 : pc.text3,
+                    color: isOn
+                        ? (isBrandMode ? accent.a400 : pc.text2)
+                        : pc.text3,
                   ),
                 ),
                 const Spacer(),

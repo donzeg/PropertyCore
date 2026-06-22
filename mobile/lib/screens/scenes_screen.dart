@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../theme.dart';
+import '../widgets/media_source_chip.dart';
 
 class ScenesScreen extends StatefulWidget {
   const ScenesScreen({super.key});
@@ -16,11 +17,19 @@ class ScenesScreen extends StatefulWidget {
 class _ScenesScreenState extends State<ScenesScreen> {
   final _executing = <String>{};
 
+  static const _mediaSources = [
+    MediaBrand.spotify,
+    MediaBrand.youtube,
+    MediaBrand.jellyfin,
+    MediaBrand.dstv,
+  ];
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final pc = state.colors;
     final accent = AppTheme.palette(state.accent);
+    final isBrandMode = state.logoMode == LogoMode.brand;
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -51,7 +60,24 @@ class _ScenesScreenState extends State<ScenesScreen> {
             ),
           ),
         ),
-
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 42,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              physics: const BouncingScrollPhysics(),
+              itemCount: _mediaSources.length,
+              itemBuilder: (context, index) {
+                return MediaSourceChip(
+                  brand: _mediaSources[index],
+                  pc: pc,
+                  logoMode: state.logoMode,
+                );
+              },
+            ),
+          ),
+        ),
         if (state.scenes.isEmpty)
           SliverToBoxAdapter(
             child: Padding(
@@ -59,8 +85,7 @@ class _ScenesScreenState extends State<ScenesScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.auto_awesome_rounded,
-                        size: 48, color: pc.text3),
+                    Icon(Icons.auto_awesome_rounded, size: 48, color: pc.text3),
                     const SizedBox(height: 16),
                     Text(
                       'No scenes configured yet.\nCreate scenes in the engineer dashboard.',
@@ -88,8 +113,7 @@ class _ScenesScreenState extends State<ScenesScreen> {
                       border: Border.all(color: pc.border),
                     ),
                     child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
                       child: Row(
                         children: [
                           Container(
@@ -97,20 +121,20 @@ class _ScenesScreenState extends State<ScenesScreen> {
                             height: 46,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              color:
-                                  accent.a500.withValues(alpha: 0.12),
+                              color: isBrandMode
+                                  ? accent.a500.withValues(alpha: 0.12)
+                                  : Colors.white.withValues(alpha: 0.08),
                             ),
                             child: Icon(
                               Icons.auto_awesome_rounded,
                               size: 22,
-                              color: accent.a400,
+                              color: isBrandMode ? accent.a400 : pc.text2,
                             ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   scene.name,
@@ -135,16 +159,14 @@ class _ScenesScreenState extends State<ScenesScreen> {
                             onTap: busy
                                 ? null
                                 : () async {
-                                    setState(() =>
-                                        _executing.add(scene.id));
+                                    setState(() => _executing.add(scene.id));
                                     try {
-                                      await state.api
-                                          ?.executeScene(scene.id);
-                                    } catch (_) {} finally {
+                                      await state.api?.executeScene(scene.id);
+                                    } catch (_) {
+                                    } finally {
                                       if (mounted) {
-                                        setState(() =>
-                                            _executing
-                                                .remove(scene.id));
+                                        setState(
+                                            () => _executing.remove(scene.id));
                                       }
                                     }
                                   },
@@ -155,15 +177,13 @@ class _ScenesScreenState extends State<ScenesScreen> {
                               decoration: BoxDecoration(
                                 color: busy
                                     ? pc.surfaceB
-                                    : accent.a500,
-                                borderRadius:
-                                    BorderRadius.circular(12),
+                                    : (isBrandMode ? accent.a500 : pc.text),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: busy
                                   ? Padding(
                                       padding: const EdgeInsets.all(10),
-                                      child:
-                                          CircularProgressIndicator(
+                                      child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         color: accent.a300,
                                       ),
@@ -184,7 +204,6 @@ class _ScenesScreenState extends State<ScenesScreen> {
               ),
             ),
           ),
-
         const SliverToBoxAdapter(child: SizedBox(height: 110)),
       ],
     );

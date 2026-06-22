@@ -13,14 +13,49 @@ import 'theme.dart';
 class AppState extends ChangeNotifier {
   final SharedPreferences _prefs;
 
+  static const _keyBgMode = 'pc-bg-mode';
+  static const _keyBgPack = 'pc-bg-pack';
+  static const _keyGlassIntensity = 'pc-glass-intensity';
+  static const _keyColorIntensity = 'pc-color-intensity';
+  static const _keyLogoMode = 'pc-logo-mode';
+
   AppState(this._prefs) {
     _hubIp = _prefs.getString('hub_ip') ?? '';
     _token = _prefs.getString('token') ?? '';
     _userId = _prefs.getString('user_id') ?? '';
     _userName = _prefs.getString('user_name') ?? '';
-    _appMode = AppMode.values[_prefs.getInt('app_mode') ?? 2]; // default: theme
+    final legacyMode = _prefs.getInt('app_mode');
+    _appMode = _enumByName(
+      AppMode.values,
+      _prefs.getString(_keyBgMode),
+      fallback: legacyMode != null &&
+              legacyMode >= 0 &&
+              legacyMode < AppMode.values.length
+          ? AppMode.values[legacyMode]
+          : AppMode.theme,
+    );
     _accent =
-        AccentColor.values[_prefs.getInt('accent') ?? 0]; // default: emerald
+        AccentColor.values[_prefs.getInt('accent') ?? AccentColor.violet.index];
+    _backgroundPack = _enumByName(
+      BackgroundPack.values,
+      _prefs.getString(_keyBgPack),
+      fallback: BackgroundPack.interior,
+    );
+    _glassIntensity = _enumByName(
+      GlassIntensity.values,
+      _prefs.getString(_keyGlassIntensity),
+      fallback: GlassIntensity.medium,
+    );
+    _colorIntensity = _enumByName(
+      ColorIntensity.values,
+      _prefs.getString(_keyColorIntensity),
+      fallback: ColorIntensity.balanced,
+    );
+    _logoMode = _enumByName(
+      LogoMode.values,
+      _prefs.getString(_keyLogoMode),
+      fallback: LogoMode.monochrome,
+    );
 
     if (_hubIp.isNotEmpty) {
       _api = ApiClient(_hubIp, token: _token.isNotEmpty ? _token : null);
@@ -54,10 +89,28 @@ class AppState extends ChangeNotifier {
   late AccentColor _accent;
   AccentColor get accent => _accent;
 
-  PCColors get colors => PCColors(_appMode, AppTheme.palette(_accent));
+  late BackgroundPack _backgroundPack;
+  BackgroundPack get backgroundPack => _backgroundPack;
+
+  late GlassIntensity _glassIntensity;
+  GlassIntensity get glassIntensity => _glassIntensity;
+
+  late ColorIntensity _colorIntensity;
+  ColorIntensity get colorIntensity => _colorIntensity;
+
+  late LogoMode _logoMode;
+  LogoMode get logoMode => _logoMode;
+
+  PCColors get colors => PCColors(
+        _appMode,
+        AppTheme.palette(_accent),
+        glassIntensity: _glassIntensity,
+        colorIntensity: _colorIntensity,
+      );
 
   void setMode(AppMode m) {
     _appMode = m;
+    _prefs.setString(_keyBgMode, m.name);
     _prefs.setInt('app_mode', m.index);
     notifyListeners();
   }
@@ -65,6 +118,30 @@ class AppState extends ChangeNotifier {
   void setAccent(AccentColor a) {
     _accent = a;
     _prefs.setInt('accent', a.index);
+    notifyListeners();
+  }
+
+  void setBackgroundPack(BackgroundPack pack) {
+    _backgroundPack = pack;
+    _prefs.setString(_keyBgPack, pack.name);
+    notifyListeners();
+  }
+
+  void setGlassIntensity(GlassIntensity intensity) {
+    _glassIntensity = intensity;
+    _prefs.setString(_keyGlassIntensity, intensity.name);
+    notifyListeners();
+  }
+
+  void setColorIntensity(ColorIntensity intensity) {
+    _colorIntensity = intensity;
+    _prefs.setString(_keyColorIntensity, intensity.name);
+    notifyListeners();
+  }
+
+  void setLogoMode(LogoMode mode) {
+    _logoMode = mode;
+    _prefs.setString(_keyLogoMode, mode.name);
     notifyListeners();
   }
 
@@ -259,5 +336,17 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _disconnectWS();
     super.dispose();
+  }
+
+  static T _enumByName<T extends Enum>(
+    List<T> values,
+    String? raw, {
+    required T fallback,
+  }) {
+    if (raw == null || raw.isEmpty) return fallback;
+    for (final v in values) {
+      if (v.name == raw) return v;
+    }
+    return fallback;
   }
 }

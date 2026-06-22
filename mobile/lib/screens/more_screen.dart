@@ -5,9 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../theme.dart';
+import '../widgets/media_source_chip.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
+
+  static const _mediaSources = [
+    MediaBrand.spotify,
+    MediaBrand.youtube,
+    MediaBrand.jellyfin,
+    MediaBrand.dstv,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -96,17 +104,14 @@ class MoreScreen extends StatelessWidget {
                             onTap: () => state.setMode(m),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(14),
                                 color: pc.surfaceB,
                                 border: Border.all(
-                                  color: active
-                                      ? accent.a500
-                                      : Colors.transparent,
+                                  color:
+                                      active ? accent.a500 : Colors.transparent,
                                   width: 2,
                                 ),
                               ),
@@ -119,8 +124,7 @@ class MoreScreen extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color:
-                                          active ? accent.a400 : pc.text2,
+                                      color: active ? accent.a400 : pc.text2,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -162,9 +166,7 @@ class MoreScreen extends StatelessWidget {
                                 colors: [p.a300, p.a600],
                               ),
                               border: Border.all(
-                                color: selected
-                                    ? pc.text
-                                    : Colors.transparent,
+                                color: selected ? pc.text : Colors.transparent,
                                 width: 3,
                               ),
                               boxShadow: selected
@@ -210,6 +212,128 @@ class MoreScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Background pack picker
+              _Card(
+                pc: pc,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardLabel(label: 'BACKGROUND PACK', pc: pc),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: BackgroundPack.values.map((pack) {
+                        final active = state.backgroundPack == pack;
+                        return _OptionPill(
+                          label: _packLabel(pack),
+                          active: active,
+                          pc: pc,
+                          accent: accent,
+                          onTap: () => state.setBackgroundPack(pack),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Visual intensity controls
+              _Card(
+                pc: pc,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardLabel(label: 'GLASS INTENSITY', pc: pc),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: GlassIntensity.values.map((g) {
+                        final active = state.glassIntensity == g;
+                        return _OptionPill(
+                          label: _glassLabel(g),
+                          active: active,
+                          pc: pc,
+                          accent: accent,
+                          onTap: () => state.setGlassIntensity(g),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    _CardLabel(label: 'COLOUR INTENSITY', pc: pc),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ColorIntensity.values.map((c) {
+                        final active = state.colorIntensity == c;
+                        return _OptionPill(
+                          label: _colorIntensityLabel(c),
+                          active: active,
+                          pc: pc,
+                          accent: accent,
+                          onTap: () => state.setColorIntensity(c),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Brand icon mode
+              _Card(
+                pc: pc,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardLabel(label: 'BRAND ICON MODE', pc: pc),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: LogoMode.values.map((m) {
+                        final active = state.logoMode == m;
+                        return _OptionPill(
+                          label: _logoModeLabel(m),
+                          active: active,
+                          pc: pc,
+                          accent: accent,
+                          onTap: () => state.setLogoMode(m),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Media chip preview
+              _Card(
+                pc: pc,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CardLabel(label: 'MEDIA SOURCE CHIPS', pc: pc),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _mediaSources.map((source) {
+                        return MediaSourceChip(
+                          brand: source,
+                          pc: pc,
+                          logoMode: state.logoMode,
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -314,8 +438,7 @@ class MoreScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text('v1.0.0',
-                style: TextStyle(fontSize: 13, color: pc.text2)),
+            Text('v1.0.0', style: TextStyle(fontSize: 13, color: pc.text2)),
             const SizedBox(height: 4),
             Text(
               'Smart property automation platform',
@@ -335,7 +458,7 @@ class MoreScreen extends StatelessWidget {
       case AppMode.light:
         return 'Light';
       case AppMode.theme:
-        return 'Theme';
+        return 'Cinema';
     }
   }
 
@@ -351,6 +474,48 @@ class MoreScreen extends StatelessWidget {
         return 'Rose';
       case AccentColor.violet:
         return 'Violet';
+    }
+  }
+
+  static String _packLabel(BackgroundPack p) {
+    switch (p) {
+      case BackgroundPack.interior:
+        return 'Interior';
+      case BackgroundPack.nightLuxe:
+        return 'Night Luxe';
+      case BackgroundPack.minimal:
+        return 'Minimal';
+    }
+  }
+
+  static String _glassLabel(GlassIntensity g) {
+    switch (g) {
+      case GlassIntensity.low:
+        return 'Low';
+      case GlassIntensity.medium:
+        return 'Medium';
+      case GlassIntensity.high:
+        return 'High';
+    }
+  }
+
+  static String _colorIntensityLabel(ColorIntensity c) {
+    switch (c) {
+      case ColorIntensity.subtle:
+        return 'Subtle';
+      case ColorIntensity.balanced:
+        return 'Balanced';
+      case ColorIntensity.vivid:
+        return 'Vivid';
+    }
+  }
+
+  static String _logoModeLabel(LogoMode m) {
+    switch (m) {
+      case LogoMode.monochrome:
+        return 'Monochrome';
+      case LogoMode.brand:
+        return 'Brand Color';
     }
   }
 }
@@ -427,9 +592,7 @@ class _NavItem extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon,
-                size: 20,
-                color: active ? accent.a400 : pc.text3),
+            Icon(icon, size: 20, color: active ? accent.a400 : pc.text3),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -437,14 +600,12 @@ class _NavItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   color: active ? accent.a400 : pc.text2,
-                  fontWeight:
-                      active ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ),
             if (onTap != null && !active)
-              Icon(Icons.arrow_forward_ios_rounded,
-                  size: 12, color: pc.text3),
+              Icon(Icons.arrow_forward_ios_rounded, size: 12, color: pc.text3),
           ],
         ),
       ),
@@ -500,6 +661,48 @@ class _ModePreview extends StatelessWidget {
           ),
         );
     }
+  }
+}
+
+class _OptionPill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final PCColors pc;
+  final AccentPalette accent;
+  final VoidCallback onTap;
+
+  const _OptionPill({
+    required this.label,
+    required this.active,
+    required this.pc,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: active ? pc.glassActiveBg : pc.surfaceB,
+          border: Border.all(
+            color: active ? pc.glassActiveBorder : pc.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: active ? accent.a400 : pc.text2,
+          ),
+        ),
+      ),
+    );
   }
 }
 
